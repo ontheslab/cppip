@@ -92,7 +92,7 @@ The project was developed in five phases:
 
 PPIP was originally written in Z80 assembly by D. Jewett III between 1985 and 1988. It was a staple utility on CP/M systems of the era, offering cross-drive and cross-user-area file operations that the standard CP/M `PIP` utility handled less conveniently.
 
-This C reimplementation preserves all the original functionality and adds the NABU-specific IA: extension for the [NABU Personal Computer](https://nabu.ca) running with any Internet Adapter (I Hope).
+This C reimplementation preserves **most of** the original functionality and adds the NABU-specific IA: extension for the [NABU Personal Computer](https://nabu.ca) running with any Internet Adapter (I Hope).
 
 ---
 

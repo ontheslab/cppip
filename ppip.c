@@ -37,12 +37,6 @@
      store, ia_crc_file() re-reads the file back and compares CRC against
      the source pass. Previously verify was silently ignored for CPM->IA.
 
-   Version 1.0.10 / 1.0.11
-   - First live IA: development builds. Initial IA->CPM, CPM->IA, and
-     CON: editor testing on real NABU hardware and MAME emulation.
-     Several options and behaviours adjusted during this phase; versions
-     rolled back to 1.0.09 baseline and reworked cleanly into 1.0.12.
-
    Version 1.0.12
    - NABU detection: ia_is_nabu() wraps isCloudCPM() (checks CloudCP/M
      BIOS flag at 0xFF29). IA: operations blocked on non-NABU systems
@@ -58,6 +52,12 @@
    - /V verify wired up for IA->CPM (source CRC accumulated during read,
      dest re-read via crc_file() and compared after copy).
    - "Intangybles" brand name spelling corrected throughout.
+
+   Version 1.0.10 / 1.0.11
+   - First live IA: development builds. Initial IA->CPM, CPM->IA, and
+     CON: editor testing on real NABU hardware and MAME emulation.
+     Several options and behaviours adjusted during this phase; versions
+     rolled back to 1.0.09 baseline and reworked cleanly into 1.0.12.
 
    Version 1.0.09
    - Phase 5: NABU IA RetroNET file store extension.
