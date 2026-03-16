@@ -42,7 +42,7 @@ CPPIP [[DU:]dest[.ext]=][DU:]source[.ext] [/options]
 
 ### Options
 
-All options default to OFF and toggle with `/`:
+All options default to OFF and are set by `/` — once on, they stay on:
 
 | Switch | Description |
 |--------|-------------|
@@ -68,6 +68,11 @@ build.bat
 **NABU CloudCP/M build (includes IA: support):**
 ```batch
 build.bat nabu
+```
+
+**Debug build:**
+```batch
+build.bat debug
 ```
 
 Output: `CPPIP.COM`

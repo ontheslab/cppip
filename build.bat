@@ -35,6 +35,6 @@ zcc +cpm -vn -create-app -compiler=sdcc --opt-code-size -DDEBUG ^
 
 :done
 echo ****************************************************************************
-echo  Done. Usage: build.bat [debug]
+echo  Done. Usage: build.bat [nabu] [debug]
 echo ****************************************************************************
 pause

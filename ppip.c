@@ -5,18 +5,28 @@
 
    Compile CP/M (standard — TRS-80 Model 4P, Kaypro, generic CP/M 2.2):
      zcc +cpm -vn -create-app -compiler=sdcc --opt-code-size \
-         ppip.c cmdparse.c filename.c diskio.c crc.c console.c -o CPPIP
+         ppip.c cmdparse.c filename.c diskio.c crc.c iaio.c console.c -o CPPIP
 
    Compile NABU CloudCP/M (adds IA: RetroNET file store support):
      zcc +cpm -vn -create-app -compiler=sdcc --opt-code-size \
          -DNABU_IA -I../NABULIB \
-         ppip.c cmdparse.c filename.c diskio.c crc.c console.c iaio.c -o CPPIP
+         ppip.c cmdparse.c filename.c diskio.c crc.c iaio.c console.c -o CPPIP
+
+   (iaio.c compiles to nothing without -DNABU_IA so both builds use the same file list)
 
    Target platforms : CP/M 2.2  — NABU, TRS-80 Model 4P, Kaypro
    Compiler         : z88dk with SDCC backend (Z80, 64KB address space)
 
    -----------------------------------------------------------------------
-   Version 1.0.15 (current)
+   Version 1.0.18 (current)
+   - Options changed from toggle to set-only. Typing /V/V or /V/V/V
+     simply means verify on — repeated switches no longer cancel out.
+   - CPM->IA wildcard dest (e.g. *.COM IA:*.SAV) now resolves correctly
+     via match_wild — previously IA:*.SAV was used as a literal filename.
+   - IA->CPM wildcard dest template now saved before loop and resolved
+     per-file via match_wild (same fix, other direction).
+
+   Version 1.0.15
    - IA filenames from rn_fileListItem() forced to uppercase; ia_init()
      also uppercases on entry. Prevents case mismatch between files copied
      to and from the IA store (Windows server is case-preserving).
@@ -479,7 +489,10 @@ static void do_copy_ia(void) {
 
     /* Build IA dest template pfile_t once (for wildcard resolution) */
     if (g_ia_dst.namelen > 0 && ia_has_wild(&g_ia_dst)) {
-        make_fcb(g_ia_dst.name, &dst_tmpl);
+        if (!make_fcb(g_ia_dst.name, &dst_tmpl)) {
+            con_str("\r\nERROR: invalid IA dest pattern\r\n");
+            return;
+        }
     }
 
     for (n = 0; n < g_nargc; n++) {
