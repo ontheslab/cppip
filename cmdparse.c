@@ -5,24 +5,22 @@
 
 /*
  * Process a single option character after the '/' switch.
- * All options toggle on/off except /M which also forces /V on.
+ * All options are set-only (cannot be toggled back off from the command
+ * line). /M also forces /V on.
  */
 static void process_option(char c) {
     /* Convert to uppercase */
     if (c >= 'a' && c <= 'z') c = (char)(c - 'a' + 'A');
 
     switch (c) {
-        case 'V': g_opts.verify = !g_opts.verify; break;
-        case 'C': g_opts.report = !g_opts.report; break;
-        case 'E': g_opts.emend  = !g_opts.emend;  break;
-        case 'W': g_opts.wipe   = !g_opts.wipe;   break;
-        case 'H': g_want_help = true; break;
-        case 'M':
-            g_opts.movf = !g_opts.movf;
-            if (g_opts.movf) g_opts.verify = true;   /* /M forces /V */
-            break;
+        case 'V': g_opts.verify  = true; break;
+        case 'C': g_opts.report  = true; break;
+        case 'E': g_opts.emend   = true; break;
+        case 'W': g_opts.wipe    = true; break;
+        case 'H': g_want_help    = true; break;
+        case 'M': g_opts.movf    = true; g_opts.verify = true; break;
 #ifdef NABU_IA
-        case 'N': g_opts.nabu_ia = !g_opts.nabu_ia; break;
+        case 'N': g_opts.nabu_ia = true; break;
 #endif
         default:
             con_out(c);

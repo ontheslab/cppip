@@ -338,6 +338,8 @@ static bool is_ia_arg(int idx) {
 static void do_copy_ia(void) {
     pfile_t  cpm;
     pfile_t  src_tmpl;
+    pfile_t  dst_tmpl;
+    pfile_t  src_pf;
     ia_t     ia_file;
     uint8_t  i;
     uint16_t n;
@@ -368,6 +370,14 @@ static void do_copy_ia(void) {
 
         if (ia_has_wild(&g_ia_src)) {
             /* Wildcard IA source: enumerate matching files */
+
+            /* Save dest template; bare drive -> all-? wildcard */
+            dst_tmpl = cpm;
+            if (dst_tmpl.fcb.f[0] == ' ') {
+                for (i = 0; i < 8; i++) dst_tmpl.fcb.f[i] = '?';
+                for (i = 0; i < 3; i++) dst_tmpl.fcb.t[i] = '?';
+            }
+
             cnt = ia_list_wild(&g_ia_src);
             if (cnt == 0) {
                 con_str(" No IA file(s) found\r\n");
@@ -376,17 +386,14 @@ static void do_copy_ia(void) {
             for (n = 0; n < cnt; n++) {
                 ia_list_item(n, &ia_file);
 
-                /* Build CPM dest filename from IA source name */
-                saved_dr   = cpm.fcb.dr;
-                saved_user = cpm.user;
-                if (!make_fcb(ia_file.name, &cpm)) {
+                /* Build src pfile_t from IA filename, resolve dest via template */
+                if (!make_fcb(ia_file.name, &src_pf)) {
                     con_str("\r\nERROR: invalid IA filename: ");
                     con_str(ia_file.name);
                     con_nl();
                     continue;
                 }
-                cpm.fcb.dr = saved_dr;
-                cpm.user   = saved_user;
+                match_wild(&cpm, &dst_tmpl, &src_pf);
 
                 ia_print_name(&ia_file);
                 con_str(" to ");
@@ -469,6 +476,12 @@ static void do_copy_ia(void) {
         con_str(" No file(s) found\r\n");
         return;
     }
+
+    /* Build IA dest template pfile_t once (for wildcard resolution) */
+    if (g_ia_dst.namelen > 0 && ia_has_wild(&g_ia_dst)) {
+        make_fcb(g_ia_dst.name, &dst_tmpl);
+    }
+
     for (n = 0; n < g_nargc; n++) {
         ia_t *dst_ia;
 
@@ -479,8 +492,15 @@ static void do_copy_ia(void) {
         for (i = 0; i < 3; i++) cpm.fcb.t[i] = narg[8 + i];
         zero_fcb_ctrl(&cpm);
 
-        /* Bare "IA:" — derive destination filename from CPM source FCB */
-        if (g_ia_dst.namelen == 0) {
+        /* Resolve IA destination name:
+         *  - wildcard IA dest (e.g. IA:*.SAV): match_wild against src FCB
+         *  - bare IA: (namelen == 0): derive name from src FCB
+         *  - explicit IA dest (e.g. IA:OUT.DAT): use as-is */
+        if (g_ia_dst.namelen > 0 && ia_has_wild(&g_ia_dst)) {
+            match_wild(&src_pf, &dst_tmpl, &cpm);
+            ia_name_from_fcb(&ia_file, &src_pf);
+            dst_ia = &ia_file;
+        } else if (g_ia_dst.namelen == 0) {
             ia_name_from_fcb(&ia_file, &cpm);
             dst_ia = &ia_file;
         } else {

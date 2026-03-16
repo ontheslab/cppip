@@ -43,7 +43,7 @@
 #define MAX_USER        31      /* highest accessible user area */
 #define SWITCH_CHAR     '/'     /* option prefix character */
 #define CRC_RETRIES     3       /* retries on CRC verify failure */
-#define PPIP_VERSION    "1.0.15"
+#define PPIP_VERSION    "1.0.18"
 
 /* ---- IA: RetroNET file descriptor (NABU_IA builds only) ---- */
 #define IA_NAME_LEN     MAX_ARG_LEN     /* max IA filename length (without "IA:" prefix) */
