@@ -18,7 +18,79 @@
    Compiler         : z88dk with SDCC backend (Z80, 64KB address space)
 
    -----------------------------------------------------------------------
-   Version 1.0.18 (current)
+   Version 1.0.27 (current)
+   - IA wildcard batch copy (IA:DIR/*.* D:) now works past the first file.
+     The NIA server has one global file-list context shared by all
+     rn_fileList() calls. ia_check_dirs() (called from ia_open_rd() during
+     each file's copy) issues its own rn_fileList(DIRS,...) calls which
+     clobber the INCLUDE_FILES list set up by ia_list_wild(). On the next
+     loop iteration, ia_list_item(n) tried to index into the dir-check
+     list (1 entry) rather than the file list, causing
+     "rn_fileListItem requested index N but there are only 1 items".
+     Fix: re-call ia_list_wild() at the top of each loop iteration to
+     restore the server's file-list context before ia_list_item(n).
+
+   Version 1.0.26 — NIA server crash prevention and path fixes
+
+   Two root problems were found and fixed (v1.0.20-1.0.26):
+
+   PROBLEM 1: Copying to/from a subdirectory that does not exist crashes
+   the NIA server and hangs the NABU indefinitely.
+
+   Root cause: the NIA server (NABU-Internet-Adapter .NET app) throws
+   DirectoryNotFoundException and drops the TCP connection when
+   rn_fileOpen() is called for a path whose directory does not exist.
+   The NABU then hangs forever in hcca_DiReadByte() waiting for a
+   response that never comes. A handle check after rn_fileOpen() is
+   useless — rn_fileOpen() never returns.
+
+   The NIA server has two distinct code paths for rn_FileOpen():
+     - Drive-letter paths (e.g. Z:\TEST\FILE): server calls
+       Directory.CreateDirectory() first, then opens. Safe always.
+     - Plain paths (e.g. TEST\FILE): server goes straight to File.Open().
+       If the directory is missing it crashes. Undocumented behaviour;
+       discovered by disassembly of fstest.NABU and analysis of the NIA
+       server binary.
+
+   Solution: two-part.
+   a) ia_check_dirs() — before any rn_fileOpen() on a plain path (read
+      or write), each directory component is verified with rn_fileList
+      (INCLUDE_DIRECTORIES), walking level by level. rn_fileList returns
+      0 for a missing directory without crashing. If any component is
+      missing, a clear error is printed and rn_fileOpen is never called.
+   b) Drive-letter paths — ia_init() detects X:/ prefix and converts '/'
+      to '\\', sending the path to the server as "X:\DIR\FILE". The
+      server auto-creates the directory tree. ia_check_dirs() is skipped
+      for these paths. Also recognised: /X/ Unix-style prefix (e.g.
+      /D/1/FILE → D:\1\FILE) — same server code path, friendlier to type.
+      A bare leading '/' not matching /X/ is stripped to prevent the
+      server mapping it to its Windows drive root and crashing.
+      ia_init() refactored to a src-pointer + output-index loop to keep
+      prefix detection and the main copy loop clean.
+
+   PROBLEM 2: Files stored with lowercase names on the IA store are not
+   found when read back, because rn_fileSize() does case-sensitive lookup
+   internally. Querying "ARCOPY.ZIP" for a file stored as "arcopy.zip"
+   returns -1 (not found) even though Windows NTFS is case-insensitive.
+
+   Solution: ia_exists()/rn_fileSize() removed from ia_open_rd() entirely.
+   rn_fileOpen(READONLY) uses the Windows OS File.Open() which IS
+   case-insensitive and finds the file regardless of stored case. The
+   returned handle (0xFF = failure) is checked instead. ia_check_dirs()
+   is still called for plain paths on reads to catch missing directories
+   before rn_fileOpen() is invoked.
+
+   Version 1.0.19
+   - IA subfolder/path support. Source and destination can now include
+     directory components: IA:FRED/FILE.DAT, IA:A/B/C/*.DAT, IA:SUBDIR/.
+     ia_list_wild() splits path/wildcard on last separator and caches the
+     path prefix in s_list_path[] so ia_list_item() returns full paths.
+     ia_name_with_path() builds "PATH/NAME.EXT" from a template + FCB for
+     CPM->IA copies. ia_name_part() strips the path prefix before make_fcb()
+     for IA->CPM copies. Any depth supported: "A/B/C/*.SAV" etc.
+   - IA_NAME_LEN increased from 32 to 64 to accommodate multi-level paths.
+
+   Version 1.0.18
    - Options changed from toggle to set-only. Typing /V/V or /V/V/V
      simply means verify on — repeated switches no longer cancel out.
    - CPM->IA wildcard dest (e.g. *.COM IA:*.SAV) now resolves correctly
@@ -316,20 +388,59 @@ static void do_con_copy(void) {
 /* ---- IA: argument detector ---- */
 #ifdef NABU_IA
 
-/* Build an ia_t name from a CP/M FCB (f[]+t[] -> "NAME.EXT") */
-static void ia_name_from_fcb(ia_t *out, const pfile_t *src) {
+/* Return length of path prefix including trailing slash (0 = no path component).
+ * Works for any depth: "A/B/C/FILE.DAT" -> 6 (length of "A/B/C/"). */
+static uint8_t ia_path_len(const ia_t *ia) {
+    uint8_t i, last = 0xFF;
+    for (i = 0; i < ia->namelen; i++)
+        if (ia->name[i] == '/' || ia->name[i] == '\\') last = i;
+    return (last == 0xFF) ? 0 : (uint8_t)(last + 1);
+}
+
+/* Return pointer to the filename/wildcard part after the last slash.
+ * Returns ia->name directly if no slash present. */
+static const char *ia_name_part(const ia_t *ia) {
+    uint8_t i, last = 0xFF;
+    for (i = 0; i < ia->namelen; i++)
+        if (ia->name[i] == '/' || ia->name[i] == '\\') last = i;
+    return (last == 0xFF) ? ia->name : &ia->name[last + 1];
+}
+
+/* Build ia_t name from path prefix of path_tmpl + filename derived from FCB.
+ * path_tmpl may be:
+ *   namelen == 0          -> no prefix  -> "NAME.EXT"
+ *   ends with / or \      -> directory  -> "DIR/NAME.EXT"
+ *   contains mid-path /   -> wildcard   -> "DIR/NAME.EXT" (prefix = up to last /)
+ * Any depth is supported: "A/B/C/*.SAV" -> prefix "A/B/C/". */
+static void ia_name_with_path(ia_t *out, const ia_t *path_tmpl, const pfile_t *src) {
     uint8_t i, k = 0;
+    uint8_t pfxlen;
+
+    /* Determine prefix length */
+    if (path_tmpl->namelen > 0 &&
+        (path_tmpl->name[path_tmpl->namelen - 1] == '/' ||
+         path_tmpl->name[path_tmpl->namelen - 1] == '\\')) {
+        pfxlen = path_tmpl->namelen;        /* "SUBDIR/" — use whole name */
+    } else {
+        pfxlen = ia_path_len(path_tmpl);    /* "SUBDIR/*.SAV" — up to last / */
+    }
+
+    /* Copy path prefix */
+    for (i = 0; i < pfxlen && k < IA_NAME_LEN - 1; i++)
+        out->name[k++] = path_tmpl->name[i];
+
+    /* Append filename from FCB (strip attribute bits) */
     for (i = 0; i < 8; i++) {
         uint8_t c = src->fcb.f[i] & 0x7F;
         if (c == ' ') break;
-        out->name[k++] = c;
+        if (k < IA_NAME_LEN - 1) out->name[k++] = c;
     }
     if ((src->fcb.t[0] & 0x7F) != ' ') {
-        out->name[k++] = '.';
+        if (k < IA_NAME_LEN - 1) out->name[k++] = '.';
         for (i = 0; i < 3; i++) {
             uint8_t c = src->fcb.t[i] & 0x7F;
             if (c == ' ') break;
-            out->name[k++] = c;
+            if (k < IA_NAME_LEN - 1) out->name[k++] = c;
         }
     }
     out->name[k] = '\0';
@@ -394,10 +505,17 @@ static void do_copy_ia(void) {
                 return;
             }
             for (n = 0; n < cnt; n++) {
+                /* Re-establish the server's file-list context before each
+                 * ia_list_item() call.  ia_check_dirs() inside ia_open_rd()
+                 * issues its own rn_fileList(DIRS,...) calls which clobber
+                 * the server's single global list state left by ia_list_wild.
+                 * Re-calling ia_list_wild() restores it; return value ignored
+                 * (we use the original cnt for loop bounds). */
+                ia_list_wild(&g_ia_src);
                 ia_list_item(n, &ia_file);
 
-                /* Build src pfile_t from IA filename, resolve dest via template */
-                if (!make_fcb(ia_file.name, &src_pf)) {
+                /* Build src pfile_t from IA filename part only (strips path) */
+                if (!make_fcb(ia_name_part(&ia_file), &src_pf)) {
                     con_str("\r\nERROR: invalid IA filename: ");
                     con_str(ia_file.name);
                     con_nl();
@@ -438,11 +556,11 @@ static void do_copy_ia(void) {
 
         /* Single IA source file */
 
-        /* Bare drive dest (e.g. D: or D6:) — use IA source filename */
+        /* Bare drive dest (e.g. D: or D6:) — use IA source filename (strip path) */
         if (cpm.fcb.f[0] == ' ') {
             saved_dr   = cpm.fcb.dr;
             saved_user = cpm.user;
-            if (!make_fcb(g_ia_src.name, &cpm)) {
+            if (!make_fcb(ia_name_part(&g_ia_src), &cpm)) {
                 con_str("\r\nERROR: invalid IA source filename\r\n");
                 return;
             }
@@ -487,9 +605,9 @@ static void do_copy_ia(void) {
         return;
     }
 
-    /* Build IA dest template pfile_t once (for wildcard resolution) */
+    /* Build IA dest template FCB once for wildcard resolution (name part only) */
     if (g_ia_dst.namelen > 0 && ia_has_wild(&g_ia_dst)) {
-        if (!make_fcb(g_ia_dst.name, &dst_tmpl)) {
+        if (!make_fcb(ia_name_part(&g_ia_dst), &dst_tmpl)) {
             con_str("\r\nERROR: invalid IA dest pattern\r\n");
             return;
         }
@@ -497,6 +615,7 @@ static void do_copy_ia(void) {
 
     for (n = 0; n < g_nargc; n++) {
         ia_t *dst_ia;
+        bool  dst_is_dir;
 
         narg = &g_nargbuf[n * FCB_FNAME_LEN];
         cpm.fcb.dr = src_tmpl.fcb.dr;
@@ -505,16 +624,21 @@ static void do_copy_ia(void) {
         for (i = 0; i < 3; i++) cpm.fcb.t[i] = narg[8 + i];
         zero_fcb_ctrl(&cpm);
 
+        /* Trailing slash means directory dest e.g. IA:SUBDIR/ */
+        dst_is_dir = (g_ia_dst.namelen > 0 &&
+                      (g_ia_dst.name[g_ia_dst.namelen - 1] == '/' ||
+                       g_ia_dst.name[g_ia_dst.namelen - 1] == '\\'));
+
         /* Resolve IA destination name:
-         *  - wildcard IA dest (e.g. IA:*.SAV): match_wild against src FCB
-         *  - bare IA: (namelen == 0): derive name from src FCB
-         *  - explicit IA dest (e.g. IA:OUT.DAT): use as-is */
+         *  - wildcard (e.g. IA:DIR/*.SAV):  match_wild + path prefix
+         *  - bare IA: or directory IA:DIR/: derive name from src FCB + path prefix
+         *  - explicit name (e.g. IA:DIR/OUT.DAT): use as-is */
         if (g_ia_dst.namelen > 0 && ia_has_wild(&g_ia_dst)) {
             match_wild(&src_pf, &dst_tmpl, &cpm);
-            ia_name_from_fcb(&ia_file, &src_pf);
+            ia_name_with_path(&ia_file, &g_ia_dst, &src_pf);
             dst_ia = &ia_file;
-        } else if (g_ia_dst.namelen == 0) {
-            ia_name_from_fcb(&ia_file, &cpm);
+        } else if (g_ia_dst.namelen == 0 || dst_is_dir) {
+            ia_name_with_path(&ia_file, &g_ia_dst, &cpm);
             dst_ia = &ia_file;
         } else {
             dst_ia = &g_ia_dst;

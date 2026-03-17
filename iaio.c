@@ -31,13 +31,49 @@ bool ia_is_nabu(void) {
     return isCloudCPM();
 }
 
+/* Returns true if ia->name has a drive-letter prefix (e.g. "Z:\...").
+ * The NIA server auto-creates directory trees for these paths, so no
+ * pre-flight directory check is needed and rn_fileOpen is safe to call
+ * even when subdirectories don't yet exist. */
+static bool ia_has_drive(const ia_t *ia) {
+    return ia->namelen >= 2 && ia->name[1] == ':';
+}
+
+/* Forward declaration — defined after ia_open_rd. */
+static bool ia_check_dirs(const ia_t *ia);
+
 void ia_init(ia_t *ia, const char *name) {
-    uint8_t i;
+    uint8_t i = 0;
+    const char *src = name;
     char c;
-    for (i = 0; i < IA_NAME_LEN - 1 && name[i]; i++) {
-        c = name[i];
+    bool has_drive;
+
+    /* /X/ or /X  →  drive-letter format  X:\...
+     * e.g. /D/1/ARCOPY.ZIP → D:\1\ARCOPY.ZIP
+     *      /Z/TEST/FILE    → Z:\TEST\FILE
+     * Lets the NIA server's auto-create-directory code path handle
+     * the path, same as the explicit "Z:/" syntax.
+     * Any other leading slash is stripped to avoid crashing the server
+     * (it maps a bare leading '/' to its Windows drive root). */
+    if (src[0] == '/' &&
+        ((src[1] >= 'a' && src[1] <= 'z') || (src[1] >= 'A' && src[1] <= 'Z')) &&
+        (src[2] == '/' || src[2] == '\\' || src[2] == '\0')) {
+        c = src[1];
         if (c >= 'a' && c <= 'z') c = (char)(c - 'a' + 'A');
-        ia->name[i] = c;
+        ia->name[i++] = c;
+        ia->name[i++] = ':';
+        src += 2;
+        has_drive = true;
+    } else {
+        if (src[0] == '/') src++;   /* strip orphan leading slash */
+        has_drive = (src[0] != '\0' && src[1] == ':');
+    }
+
+    while (i < IA_NAME_LEN - 1 && *src) {
+        c = *src++;
+        if (c >= 'a' && c <= 'z') c = (char)(c - 'a' + 'A');
+        if (has_drive && c == '/') c = '\\';
+        ia->name[i++] = c;
     }
     ia->name[i] = '\0';
     ia->namelen = i;
@@ -54,14 +90,78 @@ bool ia_exists(const ia_t *ia) {
 }
 
 bool ia_open_rd(ia_t *ia) {
-    if (!ia_exists(ia)) {
+    /* For plain paths, verify directory components exist before calling
+     * rn_fileOpen(). The NIA server throws DirectoryNotFoundException and
+     * drops the TCP connection for read-only opens on missing directories —
+     * the same crash as on the write path. ia_check_dirs() uses
+     * rn_fileList() which handles missing directories safely (returns 0).
+     * Skip for drive-letter paths — the server handles those safely.
+     *
+     * Do NOT use ia_exists()/rn_fileSize() for the file check: the server
+     * does a case-sensitive comparison there, so uppercase queries fail for
+     * lowercase files. rn_fileOpen(READONLY) uses the Windows OS directly
+     * and is case-insensitive, so the handle check is sufficient. */
+    if (!ia_has_drive(ia) && !ia_check_dirs(ia)) return false;
+    ia->handle = rn_fileOpen(ia->namelen, (uint8_t*)ia->name,
+                             OPEN_FILE_FLAG_READONLY, 0xFF);
+    if (ia->handle == 0xFF) {
         con_str("\r\nERROR: IA file not found: ");
         con_str(ia->name);
         con_nl();
         return false;
     }
-    ia->handle = rn_fileOpen(ia->namelen, (uint8_t*)ia->name,
-                             OPEN_FILE_FLAG_READONLY, 0xFF);
+    return true;
+}
+
+/* Verify every directory component in ia->name exists before writing.
+ * Walks level by level from root so each rn_fileList call uses a parent
+ * path that was verified in the previous step — safe even if deeper dirs
+ * don't exist (rn_fileList on a missing path returns 0; rn_fileOpen on a
+ * missing path crashes the NIA server and disconnects the client).
+ * Skipped for drive-letter paths (e.g. "Z:\DIR\FILE") — the NIA server
+ * calls Directory.CreateDirectory() for those automatically.
+ * Returns true if all directory components exist (or path has no dirs). */
+static bool ia_check_dirs(const ia_t *ia) {
+    uint8_t i, j;
+    uint8_t seg_start;
+    uint8_t seg_end;
+    uint8_t parent_len;
+    uint16_t cnt;
+
+    if (ia_has_drive(ia)) return true;   /* server auto-creates */
+
+    seg_start  = 0;
+    parent_len = 0;
+
+    for (i = 0; i < ia->namelen; i++) {
+        if (ia->name[i] != '/' && ia->name[i] != '\\') continue;
+
+        seg_end = i;
+        if (seg_end == seg_start) { seg_start = i + 1; continue; }  /* skip // */
+
+        /* ia->name[seg_start..seg_end-1] is a directory component */
+        if (parent_len == 0) {
+            cnt = rn_fileList(1, (uint8_t*)"\\",
+                              (uint8_t)(seg_end - seg_start),
+                              (uint8_t*)&ia->name[seg_start],
+                              FILE_LIST_FLAG_INCLUDE_DIRECTORIES);
+        } else {
+            cnt = rn_fileList(parent_len, (uint8_t*)ia->name,
+                              (uint8_t)(seg_end - seg_start),
+                              (uint8_t*)&ia->name[seg_start],
+                              FILE_LIST_FLAG_INCLUDE_DIRECTORIES);
+        }
+
+        if (cnt == 0) {
+            con_str("\r\nERROR: IA: directory not found: ");
+            for (j = 0; j < seg_end; j++) con_out(ia->name[j]);
+            con_str("\r\n  Tip: use IA:/X/PATH/FILE or IA:X:/PATH/FILE\r\n");
+            return false;
+        }
+
+        parent_len = i;   /* path up to (not including) this slash */
+        seg_start  = i + 1;
+    }
     return true;
 }
 
@@ -75,8 +175,15 @@ bool ia_open_wr(ia_t *ia) {
             if (!ask_delete()) return false;
         }
     }
+    if (!ia_check_dirs(ia)) return false;
     ia->handle = rn_fileOpen(ia->namelen, (uint8_t*)ia->name,
                              OPEN_FILE_FLAG_READWRITE, 0xFF);
+    if (ia->handle == 0xFF) {
+        con_str("\r\nERROR: IA: cannot create: ");
+        con_str(ia->name);
+        con_nl();
+        return false;
+    }
     if (exists) rn_fileHandleEmptyFile(ia->handle);
     return true;
 }
@@ -189,27 +296,65 @@ bool ia_has_wild(const ia_t *ia) {
     return false;
 }
 
+/* Path prefix cached by ia_list_wild() for use by ia_list_item().
+ * Stored as "DIR/" or "A/B/C/" — includes the trailing slash. */
+static uint8_t s_list_path[IA_NAME_LEN];
+static uint8_t s_list_pathlen;  /* 0 = root, no prefix to prepend */
+
 uint16_t ia_list_wild(const ia_t *pattern) {
-    return rn_fileList(1, (uint8_t*)"\\",
-                       pattern->namelen, (uint8_t*)pattern->name,
-                       FILE_LIST_FLAG_INCLUDE_FILES);
+    uint8_t i, last_sep = 0xFF;
+    uint8_t pathlen, wildlen;
+    const char *wild;
+
+    /* Find last path separator to split "DIR/WILD" */
+    for (i = 0; i < pattern->namelen; i++)
+        if (pattern->name[i] == '/' || pattern->name[i] == '\\') last_sep = i;
+
+    if (last_sep != 0xFF) {
+        /* Has path component: split before/after last separator */
+        pathlen = last_sep;                         /* e.g. "A/B/C" */
+        wild    = pattern->name + last_sep + 1;     /* e.g. "*.DAT" */
+        wildlen = (uint8_t)(pattern->namelen - last_sep - 1);
+
+        /* Cache "A/B/C/" prefix (with trailing slash) for ia_list_item */
+        for (i = 0; i < pathlen; i++) s_list_path[i] = (uint8_t)pattern->name[i];
+        s_list_path[pathlen] = '/';
+        s_list_pathlen = (uint8_t)(pathlen + 1);
+
+        return rn_fileList(pathlen, (uint8_t*)pattern->name,
+                           wildlen, (uint8_t*)wild,
+                           FILE_LIST_FLAG_INCLUDE_FILES);
+    } else {
+        /* No path: list root */
+        s_list_pathlen = 0;
+        return rn_fileList(1, (uint8_t*)"\\",
+                           pattern->namelen, (uint8_t*)pattern->name,
+                           FILE_LIST_FLAG_INCLUDE_FILES);
+    }
 }
 
 void ia_list_item(uint16_t n, ia_t *out) {
     FileDetailsStruct fds;
-    uint8_t i, len;
-    uint8_t c;
+    uint8_t i, k = 0;
+    uint8_t c, len;
+
     rn_fileListItem(n, &fds);
+
+    /* Prepend cached path prefix (e.g. "A/B/C/") so callers get the full path */
+    for (i = 0; i < s_list_pathlen && k < IA_NAME_LEN - 1; i++)
+        out->name[k++] = s_list_path[i];
+
+    /* Append filename, uppercase */
     len = fds.FilenameLen;
-    if (len >= IA_NAME_LEN) len = (uint8_t)(IA_NAME_LEN - 1);
+    if (len >= (uint8_t)(IA_NAME_LEN - k)) len = (uint8_t)(IA_NAME_LEN - k - 1);
     for (i = 0; i < len; i++) {
         c = fds.Filename[i];
         if (c >= 'a' && c <= 'z') c = (uint8_t)(c - 'a' + 'A');
-        out->name[i] = c;
+        out->name[k++] = c;
     }
-    out->name[len] = '\0';
-    out->namelen   = len;
-    out->handle    = 0xFF;
+    out->name[k] = '\0';
+    out->namelen  = k;
+    out->handle   = 0xFF;
 }
 
 /* Read IA file record by record and accumulate CRC into g_crcval.

@@ -37,16 +37,16 @@
 #define IOBUF_RECORDS   128     /* I/O buffer depth: 128 * 128 = 16384 bytes */
 #define IOBUF_SIZE      (IOBUF_RECORDS * REC_SIZE)
 #define MAX_ARG         8       /* max command arguments */
-#define MAX_ARG_LEN     32      /* max chars per argument (DU: + 8.3 name, or IA: + filename) */
+#define MAX_ARG_LEN     32      /* max chars per CP/M argument (DU: + 8.3 name) */
 #define MAX_NARG        512     /* max wildcard expansion results */
 #define MAX_DRIVE       ('P')   /* highest accessible drive letter */
 #define MAX_USER        31      /* highest accessible user area */
 #define SWITCH_CHAR     '/'     /* option prefix character */
 #define CRC_RETRIES     3       /* retries on CRC verify failure */
-#define PPIP_VERSION    "1.0.18"
+#define PPIP_VERSION    "1.0.27"
 
 /* ---- IA: RetroNET file descriptor (NABU_IA builds only) ---- */
-#define IA_NAME_LEN     MAX_ARG_LEN     /* max IA filename length (without "IA:" prefix) */
+#define IA_NAME_LEN     64      /* max IA path+filename length — supports multi-level paths */
 
 typedef struct {
     char    name[IA_NAME_LEN];  /* filename on IA store (uppercase, NUL-terminated) */
