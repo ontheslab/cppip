@@ -1,24 +1,35 @@
-/* ppip.c - CPPIP - CP/M File Copy Utility
+/* ppip.c - CPPIP/NPPIP - CP/M File Copy Utility
    A C reimplementation of PPIP v1.8 (D. Jewett III, 1985-1988).
    Original Z80 assembly source preserved in PPIP Master/.
    C port by Intangybles (c)2026.
 
-   Compile CP/M (standard — TRS-80 Model 4P, Kaypro, generic CP/M 2.2):
-     zcc +cpm -vn -create-app -compiler=sdcc --opt-code-size \
-         ppip.c cmdparse.c filename.c diskio.c crc.c iaio.c console.c -o CPPIP
+   Build (default — produces both CPPIP.COM and NPPIP.COM):
+     build.bat
 
-   Compile NABU CloudCP/M (adds IA: RetroNET file store support):
-     zcc +cpm -vn -create-app -compiler=sdcc --opt-code-size \
-         -DNABU_IA -I../NABULIB \
-         ppip.c cmdparse.c filename.c diskio.c crc.c iaio.c console.c -o CPPIP
-
-   (iaio.c compiles to nothing without -DNABU_IA so both builds use the same file list)
+   Build manually (inside Claude Code / Git Bash):
+     CPPIP.COM:
+       zcc +cpm -vn -create-app -compiler=sdcc --opt-code-size -DNABU_IA \
+           -I../NABULIB \
+           ppip.c cmdparse.c filename.c diskio.c crc.c iaio.c console.c -o CPPIP
+     NPPIP.COM (NABU edition — IA always on):
+       zcc +cpm -vn -create-app -compiler=sdcc --opt-code-size -DNABU_IA -DNABU_DEFAULT \
+           -I../NABULIB \
+           ppip.c cmdparse.c filename.c diskio.c crc.c iaio.c console.c -o NPPIP
 
    Target platforms : CP/M 2.2  — NABU, TRS-80 Model 4P, Kaypro
    Compiler         : z88dk with SDCC backend (Z80, 64KB address space)
 
+   Version numbering: 1.00 (NN) — major.minor (build)
+   Increment build number NN for each new test build.
+
    -----------------------------------------------------------------------
-   Version 1.0.27 (current)
+   Version 1.00 (28) — current
+   - Dual-binary build: CPPIP.COM (standard, /N for IA) and NPPIP.COM
+     (NABU edition, IA always active, CloudCP/M tag in startup banner).
+   - Version format changed to 1.00 (NN): major.minor plus build number.
+   - PROG_NAME and PPIP_VER_STR macros unify banner/help across both builds.
+
+   Version 1.00 (27)
    - IA wildcard batch copy (IA:DIR/*.* D:) now works past the first file.
      The NIA server has one global file-list context shared by all
      rn_fileList() calls. ia_check_dirs() (called from ia_open_rd() during
@@ -759,7 +770,13 @@ void main(void) {
     bool zrdos;
 
     /* Version banner — always shown so we can confirm which build is running */
-    con_str("CPPIP v" PPIP_VERSION "\r\n");
+#ifdef NABU_DEFAULT
+    con_str(PROG_NAME " v" PPIP_VER_STR " NABU Edition");
+    if (ia_is_nabu()) con_str(" [CloudCP/M]");
+    con_str("\r\n");
+#else
+    con_str(PROG_NAME " v" PPIP_VER_STR "\r\n");
+#endif
 
     /* Init CRC tables */
     crc_init();
@@ -769,6 +786,11 @@ void main(void) {
 
     /* Parse command tail (tokenise args and options) */
     parse_cmdline();
+
+#ifdef NABU_DEFAULT
+    /* NABU edition: IA always active regardless of /N */
+    g_opts.nabu_ia = true;
+#endif
 
     /* Show help if no arguments given or /H requested */
     if (g_argc == 0 || g_want_help) {

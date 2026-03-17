@@ -1,6 +1,7 @@
 # Compiled CP/M binaries and z88dk intermediates
 *.COM
 CPPIP
+NPPIP
 PPIP
 
 # z88dk build artifacts

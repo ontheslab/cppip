@@ -61,23 +61,25 @@ bool ask_delete(void) {
 
 void print_help(void) {
     con_nl();
-    con_str("CPPIP v" PPIP_VERSION " - CP/M File Copy Utility (Intangybles)");
+    con_str(PROG_NAME " v" PPIP_VER_STR " - CP/M File Copy Utility (Intangybles)");
     con_nl();
     con_nl();
     con_str("USAGE:");
     con_nl();
-    con_str("  CPPIP [DU:]source[.ext] [[DU:][dest[.ext]]] [/options]");
+    con_str("  " PROG_NAME " [DU:]source[.ext] [[DU:][dest[.ext]]] [/options]");
     con_nl();
     con_str("    or");
     con_nl();
-    con_str("  CPPIP [[DU:]dest[.ext]=][DU:]source[.ext] [/options]");
+    con_str("  " PROG_NAME " [[DU:]dest[.ext]=][DU:]source[.ext] [/options]");
     con_nl();
     con_nl();
     con_str("DU: prefix: D=drive A-P, U=user 0-31  e.g. B3:FILE.TXT");
     con_nl();
 #ifdef NABU_IA
     con_str("IA: prefix: NABU RetroNET file store  e.g. IA:FILE.TXT");
+#ifndef NABU_DEFAULT
     con_str(ia_is_nabu() ? "  [NABU Detected]" : "  [use /N to enable]");
+#endif
     con_nl();
 #endif
     con_nl();
@@ -93,7 +95,7 @@ void print_help(void) {
     con_nl();
     con_str("  /M  Move: copy then delete source (forces /V)");
     con_nl();
-#ifdef NABU_IA
+#if defined(NABU_IA) && !defined(NABU_DEFAULT)
     con_str("  /N  Enable IA: interface on non-CloudCP/M NABU systems");
     con_nl();
 #endif
