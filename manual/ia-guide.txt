@@ -97,7 +97,7 @@ NOTES
   - Plain subpaths (NIALL/FILE.DAT) need the folder to exist first.
   - If you get a clean error message, the server is fine.
     A NABU lockup with no message means an old build -- update to
-    CPPIP/NPPIP v1.00 (31) or later.
+    CPPIP/NPPIP v1.00 (32) or later.
 
 ACKNOWLEDGEMENTS
 ----------------
@@ -107,4 +107,4 @@ guidance, and testing -- his input and encouragement throughout the
 development of IA: were invaluable.
 
 =================================================
-CPPIP/NPPIP v1.00 (31)  --  Intangybles 2026
+CPPIP/NPPIP v1.00 (32)  --  Intangybles 2026

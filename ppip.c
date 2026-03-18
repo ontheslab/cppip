@@ -23,7 +23,15 @@
    Increment build number NN for each new test build.
 
    -----------------------------------------------------------------------
-   Version 1.00 (31) — current
+   Version 1.00 (32) — current
+   - Fix: TPA allocator reserved no space for the stack. z88dk CP/M startup
+     sets SP to the BDOS address (top of TPA); stack grows down from there.
+     Allocating all free TPA for g_iobuf left the stack nowhere to go,
+     causing immediate buffer corruption on the first NABULIB call (lockups
+     and zero-length copies). Fix: subtract STACK_RESERVE (1024 bytes) from
+     free TPA before sizing the I/O buffer.
+
+   Version 1.00 (31)
    - TPA buffer allocation: g_iobuf and g_nargbuf moved from static BSS to
      free TPA claimed at startup. CPPIP.COM shrinks from ~49.8KB to ~28KB
      (44% reduction). I/O buffer grows from 128 records to ~175 at runtime
