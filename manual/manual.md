@@ -196,8 +196,17 @@ The `IA:` prefix accesses the NABU RetroNET Internet Adapter file store over
 the HCCA port, giving you direct access to a network file server from the
 CP/M command line.
 
-**NPPIP:** IA: is always available.
-**CPPIP:** IA: requires CloudCP/M, or use `/N` to enable it on a non-Cloud NABU.
+CPPIP and NPPIP use identical `IA:` syntax. The only difference is how IA:
+is activated:
+
+| Binary | How to activate IA: |
+|--------|---------------------|
+| `NPPIP` | IA: is always active. No switch needed. Just use `IA:` anywhere. |
+| `CPPIP` on CloudCP/M | IA: is active automatically. No switch needed. |
+| `CPPIP` on any other NABU CP/M | Add `/N` to the command to enable IA:. |
+
+Once active, every `IA:` command works the same regardless of which binary
+you are running.
 
 ### IA path formats
 
@@ -214,12 +223,28 @@ regardless of whether they were stored with upper or lowercase names.
 
 ### IA examples
 
+Using NPPIP (IA: always active):
+
+```
+NPPIP FILE.DAT IA:/Z/BACKUP/FILE.DAT    copy to IA store
+NPPIP IA:/D/1/FILE.DAT B:               copy from IA store to drive B:
+NPPIP IA:/D/1/*.COM B:                  copy all .COM files from IA to B:
+NPPIP *.DAT IA:/Z/BACKUP/               copy all .DAT files to IA folder
+NPPIP IA:FILE.DAT B: /M                 move from IA to B: (deletes IA copy)
+```
+
+Using CPPIP on CloudCP/M (IA: active automatically):
+
 ```
 CPPIP FILE.DAT IA:/Z/BACKUP/FILE.DAT    copy to IA store
-CPPIP IA:/D/1/FILE.DAT B:               copy from IA store to drive B:
 CPPIP IA:/D/1/*.COM B:                  copy all .COM files from IA to B:
-CPPIP *.DAT IA:/Z/BACKUP/               copy all .DAT files to IA folder
-CPPIP IA:FILE.DAT B: /M                 move from IA to B: (deletes IA copy)
+```
+
+Using CPPIP on a non-Cloud NABU (add `/N` to enable IA:):
+
+```
+CPPIP FILE.DAT IA:/Z/BACKUP/FILE.DAT /N    copy to IA store
+CPPIP IA:/D/1/*.COM B: /N                  copy all .COM files from IA to B:
 ```
 
 See `IA-GUIDE.TXT` for the full IA path reference and troubleshooting guide.
