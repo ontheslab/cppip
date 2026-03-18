@@ -807,8 +807,12 @@ void main(void) {
     /* Claim free TPA for I/O buffers -- must be first, before any file I/O.
      *
      * CP/M stores the BDOS entry address at 0x0006 (low) / 0x0007 (high).
-     * Everything from program end (__BSS_END_tail) up to that address is
-     * free RAM.  We slice it into:
+     * z88dk initialises SP to that address; the stack grows DOWN from there.
+     * We must reserve STACK_RESERVE bytes at the top of TPA for the stack
+     * before claiming the rest for our buffers.  Without the reserve, the
+     * stack immediately overwrites the top of g_iobuf on the first call.
+     *
+     * Remaining free space is sliced into:
      *   g_nargbuf  -- fixed-size wildcard name table (MAX_NARG * 11 bytes)
      *   g_iobuf    -- all remaining space, capped at MAX_IOBUF_RECS records
      *
@@ -820,6 +824,10 @@ void main(void) {
         uint8_t  *tpa    = _BSS_END_tail;
         uint16_t  free_b = (uint16_t)((uint8_t*)(*(uint16_t*)0x0006) - tpa);
         uint16_t  narg_b = (uint16_t)(MAX_NARG * FCB_FNAME_LEN);
+
+        /* Reserve stack space at top of TPA -- stack grows down from BDOS */
+        if (free_b > STACK_RESERVE) free_b -= STACK_RESERVE;
+        else free_b = 0;
 
         g_nargbuf    = tpa;
         g_iobuf      = tpa + narg_b;

@@ -35,6 +35,7 @@
 #define FCB_TYPE_LEN    3       /* type/ext field in FCB */
 #define FCB_FNAME_LEN   11      /* name + type (8+3) */
 #define MAX_IOBUF_RECS  255     /* cap on I/O buffer records (~32KB max) */
+#define STACK_RESERVE   1024    /* bytes reserved at top of TPA for stack */
 #define MAX_ARG         8       /* max command arguments */
 #define MAX_ARG_LEN     32      /* max chars per CP/M argument (DU: + 8.3 name) */
 #define MAX_NARG        512     /* max wildcard expansion results */
@@ -43,7 +44,7 @@
 #define SWITCH_CHAR     '/'     /* option prefix character */
 #define CRC_RETRIES     3       /* retries on CRC verify failure */
 #define PPIP_VERSION    "1.00"
-#define PPIP_BUILD      "31"
+#define PPIP_BUILD      "32"
 #define PPIP_VER_STR    PPIP_VERSION " (" PPIP_BUILD ")"
 
 /* Program name changes based on build type:
