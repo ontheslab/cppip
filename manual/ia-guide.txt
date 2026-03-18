@@ -99,5 +99,12 @@ NOTES
     A NABU lockup with no message means an old build -- update to
     CPPIP/NPPIP v1.00 (28) or later.
 
+ACKNOWLEDGEMENTS
+----------------
+
+A big thank you to GTAMP (https://gtamp.com/nabu/) for his ideas,
+guidance, and testing -- his input and encouragement throughout the
+development of IA: were invaluable.
+
 =================================================
 CPPIP/NPPIP v1.00 (28)  --  Intangybles 2026

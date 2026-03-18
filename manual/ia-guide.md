@@ -82,3 +82,11 @@ CPPIP IA:FILE.DAT B: /E                 overwrite CP/M destination without askin
 | `IA: unavailable - use /N` | CPPIP not on CloudCP/M | Add `/N`, or use NPPIP |
 | NABU hangs, no message | Old build before server-crash fixes | Update to v1.00 (28) or later |
 
+---
+
+## Acknowledgements
+
+A big thank you to GTAMP (https://gtamp.com/nabu/) for his ideas, guidance,
+and testing - his input and encouragement throughout the development of IA:
+were invaluable.
+
