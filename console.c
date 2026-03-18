@@ -50,11 +50,18 @@ void con_hex16(uint16_t val) {
     hex_byte((uint8_t)val);
 }
 
-/* Ask "Delete? " and return true if user answers Y/y */
+/* Ask "Delete? " and return true if user answers Y/y.
+ * Ctrl-C triggers a CP/M warm boot (jump to 0x0000) — same as standard
+ * CP/M break handling.  The destination file is never open at this point
+ * so there is nothing to clean up before rebooting. */
 bool ask_delete(void) {
     char c;
     con_str(" Delete? ");
     c = con_in();           /* BDOS 1 echoes the char automatically */
+    if (c == 0x03) {
+        con_nl();
+        ((void(*)(void))0x0000)();  /* CP/M warm boot */
+    }
     if (c != 'Y' && c != 'y') con_nl();  /* end line on No; Yes continues inline */
     return (c == 'Y' || c == 'y');
 }

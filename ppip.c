@@ -23,7 +23,13 @@
    Increment build number NN for each new test build.
 
    -----------------------------------------------------------------------
-   Version 1.00 (29) — current
+   Version 1.00 (30) — current
+   - Fix: Ctrl-C at "Exists! Delete?" prompt now triggers a CP/M warm boot
+     instead of being silently treated as N and continuing the batch copy.
+     CloudCP/M's BDOS 1 (CONIN) passes 0x03 to the application; ask_delete()
+     now detects it and jumps to 0x0000 (standard CP/M warm boot vector).
+
+   Version 1.00 (29)
    - Fix: batch IA copy loop (CPM->IA and IA->CPM) no longer stops at the
      first skip/error. Inner-loop error paths used "return" (exiting the
      whole function) instead of "continue" (skipping to the next file).
