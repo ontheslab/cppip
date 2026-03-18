@@ -252,7 +252,7 @@ bool ia_copy_ia_to_cpm(ia_t *src, pfile_t *dst) {
     }
 
     while (1) {
-        bytes = rn_fileHandleReadSeq(src->handle, g_iobuf, 0, IOBUF_SIZE);
+        bytes = rn_fileHandleReadSeq(src->handle, g_iobuf, 0, (uint16_t)g_iobuf_recs * REC_SIZE);
         if (bytes == 0) break;
 
         /* Round up to whole 128-byte CP/M records */
@@ -369,7 +369,7 @@ bool ia_crc_file(ia_t *ia) {
     if (!ia_open_rd(ia)) return false;
 
     while (1) {
-        bytes = rn_fileHandleReadSeq(ia->handle, g_iobuf, 0, IOBUF_SIZE);
+        bytes = rn_fileHandleReadSeq(ia->handle, g_iobuf, 0, (uint16_t)g_iobuf_recs * REC_SIZE);
         if (bytes == 0) break;
         recs = (uint16_t)(bytes / REC_SIZE);
         for (j = 0; j < recs; j++)

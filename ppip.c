@@ -23,7 +23,14 @@
    Increment build number NN for each new test build.
 
    -----------------------------------------------------------------------
-   Version 1.00 (30) — current
+   Version 1.00 (31) — current
+   - TPA buffer allocation: g_iobuf and g_nargbuf moved from static BSS to
+     free TPA claimed at startup. CPPIP.COM shrinks from ~49.8KB to ~28KB
+     (44% reduction). I/O buffer grows from 128 records to ~175 at runtime
+     on a typical CloudCP/M system. Uses __BSS_END_tail linker symbol for
+     program end; BDOS base read from CP/M page zero (0x0006).
+
+   Version 1.00 (30)
    - Fix: Ctrl-C at "Exists! Delete?" prompt now triggers a CP/M warm boot
      instead of being silently treated as N and continuing the batch copy.
      CloudCP/M's BDOS 1 (CONIN) passes 0x03 to the application; ask_delete()
@@ -239,12 +246,12 @@ ia_t      g_ia_dst;
 bool      g_src_is_ia  = false;
 bool      g_dst_is_ia  = false;
 
-uint8_t   g_iobuf[IOBUF_SIZE];
-uint16_t  g_iobuf_recs = IOBUF_RECORDS;
+uint8_t  *g_iobuf      = NULL;  /* TPA-allocated in main() */
+uint16_t  g_iobuf_recs = 0;    /* set in main() */
 
 /* Wildcard expansion buffer (Phase 2) */
-uint8_t   g_nargbuf[MAX_NARG * FCB_FNAME_LEN];
-uint16_t  g_nargc = 0;
+uint8_t  *g_nargbuf = NULL;    /* TPA-allocated in main() */
+uint16_t  g_nargc   = 0;
 
 /* Command-line argument storage */
 char      g_argbuf[MAX_ARG][MAX_ARG_LEN];
@@ -795,6 +802,31 @@ static void do_copy(void) {
 /* ---- Program entry point ---- */
 void main(void) {
     bool zrdos;
+
+    /* Claim free TPA for I/O buffers -- must be first, before any file I/O.
+     *
+     * CP/M stores the BDOS entry address at 0x0006 (low) / 0x0007 (high).
+     * Everything from program end (__BSS_END_tail) up to that address is
+     * free RAM.  We slice it into:
+     *   g_nargbuf  -- fixed-size wildcard name table (MAX_NARG * 11 bytes)
+     *   g_iobuf    -- all remaining space, capped at MAX_IOBUF_RECS records
+     *
+     * This removes ~22KB of zero-filled BSS from the .COM image, cutting
+     * load time nearly in half while giving a larger I/O buffer at runtime.
+     */
+    {
+        extern uint8_t _BSS_END_tail[];   /* SDCC adds one '_', linker symbol is __BSS_END_tail */
+        uint8_t  *tpa    = _BSS_END_tail;
+        uint16_t  free_b = (uint16_t)((uint8_t*)(*(uint16_t*)0x0006) - tpa);
+        uint16_t  narg_b = (uint16_t)(MAX_NARG * FCB_FNAME_LEN);
+
+        g_nargbuf    = tpa;
+        g_iobuf      = tpa + narg_b;
+        g_iobuf_recs = (free_b > narg_b)
+                       ? (uint16_t)((free_b - narg_b) / REC_SIZE)
+                       : 0;
+        if (g_iobuf_recs > MAX_IOBUF_RECS) g_iobuf_recs = MAX_IOBUF_RECS;
+    }
 
     /* Version banner — always shown so we can confirm which build is running */
 #ifdef NABU_DEFAULT

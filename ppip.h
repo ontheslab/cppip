@@ -34,8 +34,7 @@
 #define FCB_NAME_LEN    8       /* filename field in FCB */
 #define FCB_TYPE_LEN    3       /* type/ext field in FCB */
 #define FCB_FNAME_LEN   11      /* name + type (8+3) */
-#define IOBUF_RECORDS   128     /* I/O buffer depth: 128 * 128 = 16384 bytes */
-#define IOBUF_SIZE      (IOBUF_RECORDS * REC_SIZE)
+#define MAX_IOBUF_RECS  255     /* cap on I/O buffer records (~32KB max) */
 #define MAX_ARG         8       /* max command arguments */
 #define MAX_ARG_LEN     32      /* max chars per CP/M argument (DU: + 8.3 name) */
 #define MAX_NARG        512     /* max wildcard expansion results */
@@ -44,7 +43,7 @@
 #define SWITCH_CHAR     '/'     /* option prefix character */
 #define CRC_RETRIES     3       /* retries on CRC verify failure */
 #define PPIP_VERSION    "1.00"
-#define PPIP_BUILD      "30"
+#define PPIP_BUILD      "31"
 #define PPIP_VER_STR    PPIP_VERSION " (" PPIP_BUILD ")"
 
 /* Program name changes based on build type:
@@ -99,8 +98,8 @@ typedef struct {
 extern uint8_t   g_drive;           /* current drive at startup (0=A) */
 extern uint8_t   g_user;            /* current user at startup */
 extern options_t g_opts;            /* active option flags */
-extern uint8_t   g_iobuf[];         /* disk I/O buffer */
-extern uint16_t  g_iobuf_recs;      /* buffer size in records */
+extern uint8_t  *g_iobuf;           /* disk I/O buffer (TPA-allocated at startup) */
+extern uint16_t  g_iobuf_recs;      /* buffer size in records (set at startup) */
 extern uint16_t  g_crcval;          /* running CRC value */
 extern bool      g_ferror;          /* fatal file error flag */
 extern bool      g_want_help;       /* /H or no-args: show help then exit */
@@ -112,7 +111,7 @@ extern bool      g_src_is_ia;       /* true when argv[0] is IA: */
 extern bool      g_dst_is_ia;       /* true when argv[1] is IA: */
 
 /* wildcard expansion: each entry is FCB_FNAME_LEN bytes */
-extern uint8_t   g_nargbuf[];       /* expanded file name list (Phase 2) */
+extern uint8_t  *g_nargbuf;         /* expanded file name list (TPA-allocated at startup) */
 extern uint16_t  g_nargc;           /* count of expanded names */
 
 /* command-line arguments */
