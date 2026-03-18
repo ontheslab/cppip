@@ -13,12 +13,11 @@ The original Z80 assembly source (all nine modules) is preserved in the `PPIP Ma
 
 ---
 
-> **Development Status - Beta / Tester Release**
+> **Development Status - Beta**
 >
-> CPPIP/NPPIP is in active development and should be considered beta quality.
-> Standard CP/M file operations are stable. The NABU IA: RetroNET extension
-> has been tested on real hardware and is working well, but edge cases may
-> remain. **Do not rely on this tool as your only means of copying important
+> Standard CP/M file operations are stable and tested across multiple systems.
+> The NABU IA: RetroNET extension is working well on real hardware. Edge cases
+> may remain. **Do not rely on this tool as your only means of copying important
 > files.** Always verify critical copies and keep backups.
 
 ---
@@ -26,6 +25,21 @@ The original Z80 assembly source (all nine modules) is preserved in the `PPIP Ma
 ## What it does
 
 CPPIP copies files on CP/M systems - between drives, between user areas, or any combination. It handles wildcards, CRC verification, move operations, and read-only file protection. On NABU systems, the `IA:` prefix adds direct access to the RetroNET Internet Adapter file store - copy files between CP/M and the IA server from the command line.
+
+Tested on: NABU CloudCP/M, RomWBW CP/M 2.2, TRS-80 Model 4P CP/M 2.2, Kaypro CP/M 2.2.
+
+---
+
+## Documentation
+
+Full documentation is in the `manual/` folder:
+
+| File | Contents |
+|------|----------|
+| `manual/manual.txt` | Full user manual - all commands, options, examples |
+| `manual/manual.md` | Same manual in Markdown |
+| `manual/ia-guide.txt` | IA: RetroNET path reference and troubleshooting |
+| `manual/ia-guide.md` | Same guide in Markdown |
 
 ---
 
@@ -56,9 +70,9 @@ All options default to OFF:
 | Switch | Description |
 |--------|-------------|
 | `/V`   | CRC-16 verify after copy - re-reads destination and compares |
-| `/C`   | Print CRC value after each copy |
-| `/E`   | Delete existing read/write destination without asking |
-| `/W`   | Delete existing read/write and read-only destination without asking |
+| `/C`   | Print CRC value after each copy (requires `/V`) |
+| `/E`   | Overwrite existing read/write destination without asking |
+| `/W`   | Overwrite any destination including read-only without asking |
 | `/M`   | Move: copy then delete source (automatically enables `/V`) |
 | `/N`   | Enable IA: on non-CloudCP/M NABU systems (CPPIP only) |
 | `/H`   | Show help |
@@ -93,7 +107,7 @@ Debug build of `CPPIP.COM`.
 | 4 | Console copy mode - `CON:` as source, mini line editor | ✅ Complete |
 | 5 | NABU IA extension - `IA:` prefix, subdirectory support, wildcard on IA side | ✅ Complete |
 | 6 | Dual binary - `CPPIP.COM` / `NPPIP.COM`, version format 1.00 (NN) | ✅ Complete |
-| 7 | Size and memory optimisation - reduce binary footprint, dynamic I/O buffer | 🔲 In progress |
+| 7 | Size and memory optimisation - dynamic TPA I/O buffer, .COM ~28KB | ✅ Complete |
 
 ---
 
@@ -107,5 +121,5 @@ This C reimplementation preserves the original functionality and adds the NABU-s
 
 ## License
 
-Original assembly source © D. Jewett III, 1985-1988.
-C reimplementation © Intangybles 2026.
+Original assembly source (c) D. Jewett III, 1985-1988.
+C reimplementation (c) Intangybles 2026.
