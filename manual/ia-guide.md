@@ -80,7 +80,7 @@ CPPIP IA:FILE.DAT B: /E                 overwrite CP/M destination without askin
 | `ERROR: IA: directory not found` | Folder missing or misspelled | Use `/X/` format to auto-create, or check spelling |
 | `ERROR: IA file not found` | File does not exist at that path | Check path and filename |
 | `IA: unavailable - use /N` | CPPIP not on CloudCP/M | Add `/N`, or use NPPIP |
-| NABU hangs, no message | Old build before server-crash fixes | Update to v1.00 (28) or later |
+| NABU hangs, no message | Old build before server-crash fixes | Update to v1.00 (31) or later |
 
 ---
 

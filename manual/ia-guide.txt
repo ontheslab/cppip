@@ -61,7 +61,7 @@ COPY FROM IA
     Copy all .COM files from drive D user 1 to B:.
 
   CPPIP IA:/Z/MYDIR/FILE.DAT D6:
-    Copy from a Z store subfolder to drive D user 6.
+    Copy from a Z store subfolder to drive D user area 6.
 
 
 WITH OPTIONS
@@ -76,7 +76,7 @@ WITH OPTIONS
 ERRORS
 ------
 
-  ERROR: IA: directory not found: NAILL
+  ERROR: IA: directory not found: NIALL
     Folder does not exist or is misspelled.
     Use /X/ or X:/ format -- it auto-creates folders on write.
     For reads, check the path spelling.
@@ -97,7 +97,7 @@ NOTES
   - Plain subpaths (NIALL/FILE.DAT) need the folder to exist first.
   - If you get a clean error message, the server is fine.
     A NABU lockup with no message means an old build -- update to
-    CPPIP/NPPIP v1.00 (28) or later.
+    CPPIP/NPPIP v1.00 (31) or later.
 
 ACKNOWLEDGEMENTS
 ----------------
@@ -107,4 +107,4 @@ guidance, and testing -- his input and encouragement throughout the
 development of IA: were invaluable.
 
 =================================================
-CPPIP/NPPIP v1.00 (28)  --  Intangybles 2026
+CPPIP/NPPIP v1.00 (31)  --  Intangybles 2026
