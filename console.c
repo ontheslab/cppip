@@ -69,7 +69,7 @@ bool ask_delete(void) {
 
 void print_help(void) {
     con_nl();
-    con_str(PROG_NAME " v" PPIP_VER_STR " - CP/M File Copy Utility (Intangybles)");
+    con_str(PROG_NAME " v" PPIP_VER_STR " - CP/M File Copy Utility (c) Intangybles");
     con_nl();
     con_nl();
     con_str("USAGE:");
