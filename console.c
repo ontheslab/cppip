@@ -56,6 +56,7 @@ void con_hex16(uint16_t val) {
  * so there is nothing to clean up before rebooting. */
 bool ask_delete(void) {
     char c;
+    while (con_stat()) con_in_ne();  /* drain type-ahead so buffered keys can't auto-answer */
     con_str(" Delete? ");
     c = con_in();           /* BDOS 1 echoes the char automatically */
     if (c == 0x03) {
