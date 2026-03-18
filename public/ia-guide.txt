@@ -1,0 +1,103 @@
+CPPIP / NPPIP -- IA: Internet Adapter Quick Guide
+=================================================
+
+CPPIP and NPPIP are CP/M file copy utilities for the NABU computer.
+This is a quick guide to using the IA: prefix, which gives CPPIP direct
+access to the NABU RetroNET Internet Adapter file store -- letting you
+copy files between your CP/M drives and the IA server without leaving
+the command line.
+
+  NPPIP -- IA: is always active.  No switch needed.
+  CPPIP -- IA: requires CloudCP/M, or add /N on a non-Cloud NABU.
+
+
+PATH FORMATS
+------------
+
+IA:FILE.DAT              Flat file at root of store.
+
+IA:NIALL/FILE.DAT        File in an existing subfolder.
+                         Folder must already exist.
+
+IA:/D/1/FILE.DAT         Best for CloudCP/M files.  /X/ style maps to
+IA:D:/1/FILE.DAT         the drive/user layout: /D/1/ = drive D user 1.
+                         Both formats are identical.
+                         Folders auto-created on write.
+                         Files found even if stored with lowercase names.
+
+Use /X/ or X:/ for any subfolder work -- it is the safest format and
+the easiest to type on the NABU keyboard.
+
+
+COPY TO IA
+----------
+
+  CPPIP RETRO.DAT IA:RETRO.DAT
+    Copy to root of store.
+
+  CPPIP RETRO.DAT IA:NIALL/RETRO.DAT
+    Copy to existing NIALL folder.
+
+  CPPIP RETRO.DAT IA:/Z/MYDIR/RETRO.DAT
+    Copy to Z/MYDIR/ -- folder created automatically if needed.
+
+  CPPIP RETRO.DAT IA:/D/1/RETRO.DAT
+    Copy to CloudCP/M drive D user area 1.
+
+  CPPIP *.DAT IA:/Z/BACKUP/
+    Copy all .DAT files into Z/BACKUP/.
+
+
+COPY FROM IA
+------------
+
+  CPPIP IA:RETRO.DAT RETRO.DAT
+    Copy from root of store to current drive/user.
+
+  CPPIP IA:/D/1/ARCOPY.ZIP B:
+    Copy ARCOPY.ZIP from drive D user 1 to drive B:.
+
+  CPPIP IA:/D/1/*.COM B:
+    Copy all .COM files from drive D user 1 to B:.
+
+  CPPIP IA:/Z/MYDIR/FILE.DAT D6:
+    Copy from a Z store subfolder to drive D user 6.
+
+
+WITH OPTIONS
+------------
+
+  CPPIP RETRO.DAT IA:/Z/BK/RET.DAT /V     copy + CRC verify
+  CPPIP RETRO.DAT IA:/Z/BK/RET.DAT /VC    copy + verify + print CRC value
+  CPPIP IA:FILE.DAT B: /M                  move (copy then delete IA copy)
+  CPPIP IA:FILE.DAT B: /E                  overwrite destination without asking
+
+
+ERRORS
+------
+
+  ERROR: IA: directory not found: NAILL
+    Folder does not exist or is misspelled.
+    Use /X/ or X:/ format -- it auto-creates folders on write.
+    For reads, check the path spelling.
+
+  ERROR: IA file not found: /D/1/FILE.DAT
+    File does not exist at that path.  Check spelling.
+
+  IA: unavailable - use /N to enable
+    Running CPPIP on a non-CloudCP/M system.
+    Add /N to force IA: mode, or use NPPIP instead.
+
+
+NOTES
+-----
+
+  - Path letters and filenames are always converted to uppercase.
+  - /D/1/ and D:/1/ go to the same place.
+  - Plain subpaths (NIALL/FILE.DAT) need the folder to exist first.
+  - If you get a clean error message, the server is fine.
+    A NABU lockup with no message means an old build -- update to
+    CPPIP/NPPIP v1.00 (28) or later.
+
+=================================================
+CPPIP/NPPIP v1.00 (28)  --  Intangybles 2026
