@@ -37,6 +37,13 @@
      (44% reduction). I/O buffer grows from 128 records to ~175 at runtime
      on a typical CloudCP/M system. Uses __BSS_END_tail linker symbol for
      program end; BDOS base read from CP/M page zero (0x0006).
+   - Fix: BDOS 11 (CONSTAT) returns a false positive after HCCA/IA
+     communication on CloudCP/M. The ask_delete() type-ahead drain and
+     check_abort() both used BDOS 11; replaced with direct BDOS 6 (DIRIO,
+     0xFF) calls, which return 0 immediately when no key is waiting and
+     are reliable on all CP/M 2.2 variants.
+   - Keyboard buffer drained before each "Exists!/RO! Delete?" prompt so
+     rapid keypresses cannot silently auto-answer the next confirmation.
 
    Version 1.00 (30)
    - Fix: Ctrl-C at "Exists! Delete?" prompt now triggers a CP/M warm boot
