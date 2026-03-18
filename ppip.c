@@ -486,11 +486,12 @@ static bool is_ia_arg(int idx) {
     return (s[0] == 'I' && s[1] == 'A' && s[2] == ':');
 }
 
-/* Check for Ctrl-C between files.  Non-blocking: only reads if a key is
- * already waiting.  Returns true if the user pressed Ctrl-C. */
+/* Check for Ctrl-C between files.
+ * Uses BDOS 6 directly -- returns 0 immediately if no key is waiting.
+ * Avoids BDOS 11 (CONSTAT) which gives false positives on CloudCP/M
+ * after HCCA communication, causing con_in_ne() to block indefinitely. */
 static bool check_abort(void) {
-    if (!con_stat()) return false;
-    if (con_in_ne() == 0x03) {
+    if ((uint8_t)bdos(BDOS_DIRIO, 0xFF) == 0x03) {
         con_str("^C\r\n");
         return true;
     }
