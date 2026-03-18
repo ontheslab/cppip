@@ -6,35 +6,51 @@ SET PATH=%Z88DK_DIR%bin;%PATH%
 
 echo.
 echo ****************************************************************************
-echo  CPPIP Build Script
+echo  CPPIP / NPPIP Build Script
 echo ****************************************************************************
 
-if /I "%1"=="nabu"  goto build_nabu
 if /I "%1"=="debug" goto build_debug
 
 :build_release
-echo  Building CPPIP (plain CP/M release)...
-zcc +cpm -vn -create-app -compiler=sdcc --opt-code-size ^
-    ppip.c cmdparse.c filename.c diskio.c crc.c iaio.c console.c ^
-    -o CPPIP
-goto done
-
-:build_nabu
-echo  Building CPPIP (NABU IA release)...
+echo  Building CPPIP.COM (standard — IA available via /N)...
 zcc +cpm -vn -create-app -compiler=sdcc --opt-code-size -DNABU_IA ^
     -I..\NABULIB ^
     ppip.c cmdparse.c filename.c diskio.c crc.c iaio.c console.c ^
     -o CPPIP
-goto done
+if errorlevel 1 goto fail
+
+echo  Building NPPIP.COM (NABU edition — IA always active)...
+zcc +cpm -vn -create-app -compiler=sdcc --opt-code-size -DNABU_IA -DNABU_DEFAULT ^
+    -I..\NABULIB ^
+    ppip.c cmdparse.c filename.c diskio.c crc.c iaio.c console.c ^
+    -o NPPIP
+if errorlevel 1 goto fail
+
+goto sizes
 
 :build_debug
-echo  Building CPPIP (debug)...
-zcc +cpm -vn -create-app -compiler=sdcc --opt-code-size -DDEBUG ^
+echo  Building CPPIP.COM (debug)...
+zcc +cpm -vn -create-app -compiler=sdcc --opt-code-size -DNABU_IA -DDEBUG ^
+    -I..\NABULIB ^
     ppip.c cmdparse.c filename.c diskio.c crc.c iaio.c console.c ^
     -o CPPIP
+if errorlevel 1 goto fail
+goto sizes
 
-:done
+:sizes
+echo.
+echo  Output:
+for %%F in (CPPIP.COM NPPIP.COM) do (
+    if exist %%F echo    %%F  %%~zF bytes
+)
+echo.
 echo ****************************************************************************
-echo  Done. Usage: build.bat [nabu] [debug]
+echo  Build OK. Usage: build.bat [debug]
 echo ****************************************************************************
-pause
+exit /b 0
+
+:fail
+echo.
+echo  *** BUILD FAILED ***
+echo ****************************************************************************
+exit /b 1
