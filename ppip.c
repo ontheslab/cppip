@@ -23,7 +23,14 @@
    Increment build number NN for each new test build.
 
    -----------------------------------------------------------------------
-   Version 1.00 (28) — current
+   Version 1.00 (29) — current
+   - Fix: batch IA copy loop (CPM->IA and IA->CPM) no longer stops at the
+     first skip/error. Inner-loop error paths used "return" (exiting the
+     whole function) instead of "continue" (skipping to the next file).
+     Saying N to "Exists! Delete?" during a wildcard IA copy now skips
+     that file and continues with the rest, matching CPM->CPM behaviour.
+
+   Version 1.00 (28)
    - Dual-binary build: CPPIP.COM (standard, /N for IA) and NPPIP.COM
      (NABU edition, IA always active, CloudCP/M tag in startup banner).
    - Version format changed to 1.00 (NN): major.minor plus build number.
@@ -466,6 +473,17 @@ static bool is_ia_arg(int idx) {
     return (s[0] == 'I' && s[1] == 'A' && s[2] == ':');
 }
 
+/* Check for Ctrl-C between files.  Non-blocking: only reads if a key is
+ * already waiting.  Returns true if the user pressed Ctrl-C. */
+static bool check_abort(void) {
+    if (!con_stat()) return false;
+    if (con_in_ne() == 0x03) {
+        con_str("^C\r\n");
+        return true;
+    }
+    return false;
+}
+
 /* ---- IA copy dispatch (Phase 5) ---- */
 static void do_copy_ia(void) {
     pfile_t  cpm;
@@ -516,6 +534,7 @@ static void do_copy_ia(void) {
                 return;
             }
             for (n = 0; n < cnt; n++) {
+                if (check_abort()) return;
                 /* Re-establish the server's file-list context before each
                  * ia_list_item() call.  ia_check_dirs() inside ia_open_rd()
                  * issues its own rn_fileList(DIRS,...) calls which clobber
@@ -537,18 +556,18 @@ static void do_copy_ia(void) {
                 ia_print_name(&ia_file);
                 con_str(" to ");
                 print_fname(&cpm);
-                if (!ia_copy_ia_to_cpm(&ia_file, &cpm)) return;
+                if (!ia_copy_ia_to_cpm(&ia_file, &cpm)) continue;
 
                 if (g_opts.verify) {
                     con_str(" - Verifying");
                     if (!crc_file(&cpm)) {
                         con_str("\r\nERROR: can't verify dest\r\n");
-                        return;
+                        continue;
                     }
                     if (g_crcval != g_crcval2) {
                         con_str(" FAILED\r\n CRC failed! Please check your disk.\r\n");
                         con_out('\007');
-                        return;
+                        continue;
                     }
                     con_str(" OK");
                     if (g_opts.report) { con_str("  CRC: "); con_hex16(g_crcval2); }
@@ -626,6 +645,7 @@ static void do_copy_ia(void) {
 
     for (n = 0; n < g_nargc; n++) {
         ia_t *dst_ia;
+        if (check_abort()) return;
         bool  dst_is_dir;
 
         narg = &g_nargbuf[n * FCB_FNAME_LEN];
@@ -658,18 +678,18 @@ static void do_copy_ia(void) {
         print_fname(&cpm);
         con_str(" to ");
         ia_print_name(dst_ia);
-        if (!ia_copy_cpm_to_ia(&cpm, dst_ia)) return;
+        if (!ia_copy_cpm_to_ia(&cpm, dst_ia)) continue;
 
         if (g_opts.verify) {
             con_str(" - Verifying");
             if (!ia_crc_file(dst_ia)) {
                 con_str("\r\nERROR: can't verify IA dest\r\n");
-                return;
+                continue;
             }
             if (g_crcval != g_crcval2) {
                 con_str(" FAILED\r\n CRC failed! Please check your IA store.\r\n");
                 con_out('\007');
-                return;
+                continue;
             }
             con_str(" OK");
             if (g_opts.report) { con_str("  CRC: "); con_hex16(g_crcval2); }
@@ -735,6 +755,7 @@ static void do_copy(void) {
 
     for (n = 0; n < g_nargc; n++) {
         uint8_t *narg = &g_nargbuf[n * FCB_FNAME_LEN];
+        if (check_abort()) return;
 
         /* Build actual src pfile_t from the directory entry in nargbuf */
         src.fcb.dr = src_tmpl.fcb.dr;
