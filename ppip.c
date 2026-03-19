@@ -847,13 +847,13 @@ void main(void) {
         if (g_iobuf_recs > MAX_IOBUF_RECS) g_iobuf_recs = MAX_IOBUF_RECS;
     }
 
-    /* Version banner — always shown so we can confirm which build is running */
+    /* Version banner — shows clean version; build number in /H help title */
 #ifdef NABU_DEFAULT
-    con_str(PROG_NAME " v" PPIP_VER_STR " NABU Edition");
+    con_str(PROG_NAME " v" PPIP_VERSION " NABU Edition");
     if (ia_is_nabu()) con_str(" [CloudCP/M]");
     con_str("\r\n");
 #else
-    con_str(PROG_NAME " v" PPIP_VER_STR "\r\n");
+    con_str(PROG_NAME " v" PPIP_VERSION "\r\n");
 #endif
 
     /* Init CRC tables */
