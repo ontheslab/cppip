@@ -1,6 +1,6 @@
 CPPIP -- CP/M File Copy Utility
 ================================
-User Manual -- v1.00 (32)
+User Manual -- v1.00 (32)  [Document revision 1.0]
 
 A C reimplementation of PPIP v1.8 by D. Jewett III (1985-1988).
 C port and NABU IA extension by Intangybles, 2026.
@@ -87,7 +87,8 @@ OPTIONS
 Options start with / and can appear anywhere in the command line.
 They can be bundled (/VC = /V /C).  Each option toggles when repeated.
 
-  /V   Verify     CRC-16 verify after copy.  Retries up to 3 times.
+  /V   Verify     CRC-16 verify after copy.  On CP/M copies, retries up to
+                 3 times on mismatch.
   /C   CRC        Print CRC value in hex after a verified copy (requires /V).
   /E   Existing   Overwrite existing read/write dest without asking.
   /W   Wipe       Overwrite any dest (read/write or read-only) without asking.
@@ -222,9 +223,17 @@ CRC VERIFY
 When /V is active, CPPIP computes a CRC-16 (CCITT) checksum of the source
 as it reads it, then re-reads the destination and compares.
 
+CP/M to CP/M copies:
+
   Match:    "OK" is shown.
   Mismatch: the destination is deleted and the copy is retried.
             Up to 3 attempts are made before giving up.
+
+Copies involving IA: (either source or destination):
+
+  Match:    "OK" is shown.
+  Mismatch: "CRC failed!" is shown.  The copy is not retried.
+            Check the IA server connection and try again manually.
 
 /C prints the CRC value in hexadecimal.  This is the same algorithm used by
 XMODEM, KERMIT, and other standard CP/M file transfer tools, so values can
@@ -255,8 +264,8 @@ MESSAGES
   - Verifying          CRC verify pass in progress.
   OK                   Copy complete (and verified, if /V was used).
   CRC: XXXX            CRC value in hex (shown with /C).
-  FAILED - retrying    CRC mismatch -- retrying.
-  CRC failed!          All retries failed -- disk problem likely.
+  FAILED - retrying    CRC mismatch on CP/M copy -- retrying.
+  CRC failed!          All retries failed (CP/M), or IA verify failed.
   Disk full.           No space on destination.  Partial file removed.
   ^C                   Ctrl-C pressed -- batch stopped, remaining files skipped.
 
