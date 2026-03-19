@@ -1,5 +1,5 @@
 # CPPIP - CP/M File Copy Utility
-## User Manual - v1.00 (32)
+## User Manual - v1.00 (32)  [Document revision 1.01]
 
 *A C reimplementation of PPIP v1.8 by D. Jewett III (1985-1988).*
 *C port and NABU IA extension by Intangybles, 2026.*
