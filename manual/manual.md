@@ -116,7 +116,7 @@ state each time it appears.
 
 | Option | Name | Description |
 |--------|------|-------------|
-| `/V` | Verify | CRC-16 verify after copy. Retries up to 3 times on mismatch. |
+| `/V` | Verify | CRC-16 verify after copy. On CP/M copies, retries up to 3 times on mismatch. |
 | `/C` | CRC | Print the CRC value in hex after a verified copy (requires `/V`). |
 | `/E` | Existing | Overwrite existing read/write destination without asking. |
 | `/W` | Wipe | Overwrite any destination (read/write or read-only) without asking. |
@@ -272,9 +272,17 @@ When `/V` is active, CPPIP computes a CRC-16 (CCITT) checksum of the source
 file as it is read, then re-reads the destination and computes the same
 checksum.
 
+**CP/M to CP/M copies:**
+
 - **Match:** `OK` is shown.
 - **Mismatch:** the destination is deleted and the copy is retried. Up to
   3 attempts are made before CPPIP gives up and reports a CRC failure.
+
+**Copies involving IA: (either source or destination):**
+
+- **Match:** `OK` is shown.
+- **Mismatch:** `CRC failed!` is shown. The copy is not retried.
+  Check the IA server connection and try again manually.
 
 `/C` prints the CRC value in hexadecimal. This is the same CRC algorithm used
 by XMODEM, KERMIT, and other standard CP/M transfer tools, so values can be
@@ -307,8 +315,8 @@ operation and return to the CP/M command prompt immediately.
 | `- Verifying` | CRC verify pass in progress. |
 | `OK` | Copy complete (and verified if `/V` was used). |
 | `CRC: XXXX` | CRC value in hex (shown with `/C`). |
-| `FAILED - retrying...` | CRC mismatch - retrying. |
-| `CRC failed! Please check your disk.` | All retries exhausted - disk problem likely. |
+| `FAILED - retrying...` | CRC mismatch on CP/M copy - retrying. |
+| `CRC failed! Please check your disk.` | All retries exhausted (CP/M), or IA verify failed. |
 | `Disk full. Copy deleted.` | Destination disk has no space. Partial file removed. |
 | `^C` | Ctrl-C pressed - batch stopped, remaining files skipped. |
 | `ERROR: IA: directory not found` | IA subfolder does not exist. Use `/X/` format or check spelling. |
