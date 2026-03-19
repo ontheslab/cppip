@@ -9,8 +9,9 @@ PPIP
 *.map
 *.lst
 
-# Archive folder for old test builds
+# Archive and release folders for local builds
 archive/
+release/
 
 # Project internals - not for public repo
 PLAN.md
