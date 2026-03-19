@@ -233,8 +233,8 @@ bool has_wild(const pfile_t *pf) {
 /*
  * Expand source wildcard FCB via BDOS SRCHFST/SRCHNXT.
  * Each match is stored as FCB_FNAME_LEN (11) bytes in g_nargbuf.
- * Attribute bits from the directory entry are preserved (Just in case - 
- * as in /A in the original PPIP).
+ * Attribute bits from the directory entry are preserved so that R/O
+ * status is available when building the destination FCB.
  * Sets g_nargc. Returns the match count.
  */
 uint16_t expand_wild(pfile_t *pf) {

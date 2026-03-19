@@ -6,7 +6,8 @@
  *
  * One copy of the RetroNET-FileStore.c implementation ends up here because
  * RetroNET-FileStore.h includes its own .c at the bottom (header-only style).
- * Do NOT include RetroNET-FileStore.h elsewhere - Learning.
+ * Do NOT include RetroNET-FileStore.h elsewhere - it pulls in its own .c
+ * implementation and will cause duplicate symbol errors if included twice.
  */
 
 #ifdef NABU_IA

@@ -1,5 +1,5 @@
 /*
- * CRC-16 module (Phase 1: stubs only — finish up in Phase 3)
+ * CRC-16 module
  *
  * Algorithm: CCITT CRC-16, polynomial x^16 + x^12 + x^5 + x^0
  * Same as used by MODEM7, CHEK, and the original PPIP.

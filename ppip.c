@@ -235,11 +235,6 @@
      Attribute copy: R/O and archive bits propagated from src to dest FCB.
 */
 
-/* NABU-specific defines (harmless on plain CP/M if NABU-LIB not included) */
-/* #define BIN_TYPE BIN_CPM     */
-/* #define DISABLE_VDP          */
-/* #define DISABLE_KEYBOARD_INT */
-
 #include "ppip.h"
 #include "cmdparse.h"
 #include "filename.h"
