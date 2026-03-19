@@ -1,5 +1,6 @@
 CPPIP / NPPIP -- IA: Internet Adapter Quick Guide
 =================================================
+Quick Guide -- v1.00 (32)  [Document revision 1.01]
 
 CPPIP and NPPIP are CP/M file copy utilities for the NABU computer.
 This is a quick guide to using the IA: prefix, which gives CPPIP direct
