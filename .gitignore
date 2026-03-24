@@ -16,7 +16,3 @@ release/
 # Project internals - not for public repo
 PLAN.md
 docs/
-CLAUDE.md
-
-# Claude Code project settings
-.claude/
