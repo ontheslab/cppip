@@ -44,17 +44,28 @@
 #define SWITCH_CHAR     '/'     /* option prefix character */
 #define CRC_RETRIES     3       /* retries on CRC verify failure */
 #define PPIP_VERSION    "1.00"
-#define PPIP_BUILD      "32"
+#define PPIP_BUILD      "33"
 #define PPIP_VER_STR    PPIP_VERSION " (" PPIP_BUILD ")"
 
 /* Program name changes based on build type:
- *   CPPIP — standard build, IA: available via /N
- *   NPPIP — NABU edition (-DNABU_DEFAULT), IA: always enabled */
-#ifdef NABU_DEFAULT
+ *   CPPIP — standard build, IA: available via /N, SD: available with -DFREHD
+ *   NPPIP — NABU edition (-DNABU_DEFAULT), IA: always enabled
+ *   FPPIP — FreHD edition (-DFREHD_DEFAULT), SD: always enabled */
+#if defined(NABU_DEFAULT)
 #define PROG_NAME "NPPIP"
+#elif defined(FREHD_DEFAULT)
+#define PROG_NAME "FPPIP"
 #else
 #define PROG_NAME "CPPIP"
 #endif
+
+/* ---- SD: FreHD file descriptor (FREHD builds only) ---- */
+#define SD_NAME_LEN     64      /* max SD path+filename length */
+
+typedef struct {
+    char    name[SD_NAME_LEN];  /* filename on SD card (uppercase, NUL-terminated) */
+    uint8_t namelen;            /* strlen(name) cached */
+} sd_t;
 
 /* ---- IA: RetroNET file descriptor (NABU_IA builds only) ---- */
 #define IA_NAME_LEN     64      /* max IA path+filename length — supports multi-level paths */
@@ -110,6 +121,12 @@ extern ia_t      g_ia_src;          /* parsed IA: source descriptor */
 extern ia_t      g_ia_dst;          /* parsed IA: dest descriptor */
 extern bool      g_src_is_ia;       /* true when argv[0] is IA: */
 extern bool      g_dst_is_ia;       /* true when argv[1] is IA: */
+
+/* SD: FreHD file descriptors (FREHD builds) */
+extern sd_t      g_sd_src;          /* parsed SD: source descriptor */
+extern sd_t      g_sd_dst;          /* parsed SD: dest descriptor */
+extern bool      g_src_is_sd;       /* true when argv[0] is SD: */
+extern bool      g_dst_is_sd;       /* true when argv[1] is SD: */
 
 /* wildcard expansion: each entry is FCB_FNAME_LEN bytes */
 extern uint8_t  *g_nargbuf;         /* expanded file name list (TPA-allocated at startup) */

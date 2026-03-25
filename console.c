@@ -1,6 +1,7 @@
 #include "ppip.h"
 #include "console.h"
 #include "iaio.h"
+#include "sdio.h"
 
 void con_out(char c) {
     bdos(BDOS_CONOUT, (int)(uint8_t)c);
@@ -88,6 +89,11 @@ void print_help(void) {
 #ifndef NABU_DEFAULT
     con_str(ia_is_nabu() ? "  [NABU Detected]" : "  [use /N to enable]");
 #endif
+    con_nl();
+#endif
+#ifdef FREHD
+    con_str("SD: prefix: FreHD SD card file store  e.g. SD:FILE.COM");
+    con_str(sd_is_frehd() ? "  [FreHD Detected]" : "  [FreHD not found]");
     con_nl();
 #endif
     con_nl();
