@@ -14,6 +14,7 @@ PPIP
 archive/
 release/
 research/
+archive.ps1
 
 # Project internals - not for public repo
 PLAN.md
