@@ -2,6 +2,7 @@
 *.COM
 CPPIP
 NPPIP
+FPPIP
 PPIP
 
 # z88dk build artifacts
