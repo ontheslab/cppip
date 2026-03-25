@@ -1,6 +1,6 @@
 /* sdio.c - FreHD SD card I/O extension for CPPIP/FPPIP
  *
- * Implements SD: prefix file access via the Vecoven FreHD hard disk emulator.
+ * Implements SD: prefix file access via the FreHD hard disk emulator.
  * The FreHD presents an SD card to the Z80 via five fixed I/O ports (0xC2-0xC5,
  * 0xCF) using a command/data protocol derived from FatFS.
  *
@@ -471,7 +471,7 @@ uint16_t sd_list_wild(const sd_t *pattern) {
         dir_len = 1;                            /* root "/" */
     }
 
-    /* OPENDIR: SIZE2 written before COMMAND2 (utlcore.z80 protocol) */
+    /* OPENDIR: SIZE2 must be written before COMMAND2 is issued */
     s_sd_size = (uint8_t)(dir_len + 1);         /* path + NUL */
     s_sd_cmd  = SD_CMD_OPENDIR;
     sd_wait();

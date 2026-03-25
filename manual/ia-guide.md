@@ -1,5 +1,5 @@
-# CPPIP / NPPIP - IA: Internet Adapter Quick Guide
-## Quick Guide - v1.00 (32)  [Document revision 1.01]
+# CPPIP / NPPIP / FPPIP - IA: Internet Adapter Quick Guide
+## Quick Guide - v1.10 (44)  [Document revision 1.10]
 
 CPPIP and NPPIP are CP/M file copy utilities for the NABU computer. This is a
 quick guide to using the `IA:` prefix, which gives CPPIP direct access to the
@@ -8,6 +8,7 @@ your CP/M drives and the IA server without leaving the command line.
 
 - **NPPIP** - IA: is always active. No switch needed.
 - **CPPIP** - IA: requires CloudCP/M, or add `/N` on a non-Cloud NABU with an IA.
+- **FPPIP** - FreHD edition only. No IA: code. Use CPPIP or NPPIP for IA: access.
 
 ---
 
@@ -72,6 +73,24 @@ CPPIP IA:FILE.DAT B: /E                 overwrite CP/M destination without askin
 - Drive-letter and `/X/` paths auto-create missing folders on write.
 - A typo in a plain subfolder gives a clean error, not a lockup.
 
+## Long filenames in wildcard copies
+
+CP/M can only store filenames with a name part up to 8 characters. If a
+wildcard IA: copy matches a file whose name is longer than 8 characters, the
+name is automatically truncated to 8 characters (the extension is preserved).
+A `[truncated]` note is appended to the copy line:
+
+```
+IA:LONGFILENAME.COM to A0:LONGFILE.COM [truncated]
+```
+
+If the truncated name collides with an existing file and you decline to
+overwrite it, a rename hint is shown:
+
+```
+   To copy: NPPIP IA:LONGFILENAME.COM A:NEWNAME.COM
+```
+
 ---
 
 ## Troubleshooting
@@ -81,7 +100,7 @@ CPPIP IA:FILE.DAT B: /E                 overwrite CP/M destination without askin
 | `ERROR: IA: directory not found` | Folder missing or misspelled | Use `/X/` format to auto-create, or check spelling |
 | `ERROR: IA file not found` | File does not exist at that path | Check path and filename |
 | `IA: unavailable - use /N` | CPPIP not on CloudCP/M | Add `/N`, or use NPPIP |
-| NABU hangs, no message | Old build before server-crash fixes | Update to v1.00 (32) or later |
+| NABU hangs, no message | Old build before server-crash fixes | Update to v1.10 (44) or later |
 
 ---
 

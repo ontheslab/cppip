@@ -7,23 +7,66 @@
      build.bat
 
    Build manually (inside Claude Code / Git Bash):
-     CPPIP.COM:
-       zcc +cpm -vn -create-app -compiler=sdcc --opt-code-size -DNABU_IA \
+     CPPIP.COM (standard — IA via /N, FreHD SD card support):
+       zcc +cpm -vn -create-app -compiler=sdcc --opt-code-size -DNABU_IA -DFREHD \
            -I../NABULIB \
-           ppip.c cmdparse.c filename.c diskio.c crc.c iaio.c console.c -o CPPIP
-     NPPIP.COM (NABU edition — IA always on):
+           ppip.c cmdparse.c filename.c diskio.c crc.c iaio.c console.c sdio.c -o CPPIP
+     NPPIP.COM (NABU edition — IA always on, no SD card code):
        zcc +cpm -vn -create-app -compiler=sdcc --opt-code-size -DNABU_IA -DNABU_DEFAULT \
            -I../NABULIB \
            ppip.c cmdparse.c filename.c diskio.c crc.c iaio.c console.c -o NPPIP
+     FPPIP.COM (FreHD edition — SD always on, no IA code):
+       zcc +cpm -vn -create-app -compiler=sdcc --opt-code-size -DFREHD -DFREHD_DEFAULT \
+           ppip.c cmdparse.c filename.c diskio.c crc.c console.c sdio.c -o FPPIP
 
-   Target platforms : CP/M 2.2  — NABU, TRS-80 Model 4P, Kaypro
+   Target platforms : CP/M 2.2 — NABU CloudCP/M, TRS-80 Model 4P, Kaypro
    Compiler         : z88dk with SDCC backend (Z80, 64KB address space)
 
-   Version numbering: 1.00 (NN) — major.minor (build)
-   Increment build number NN for each new test build.
+   Version numbering: major.minor (build)
+   Increment build number for each new test build.
 
    -----------------------------------------------------------------------
-   Version 1.00 (32) — current
+   Version 1.10 (44) — current
+
+   Phase 6: FreHD SD card extension. New binary FPPIP.COM; SD: prefix added
+   to CPPIP.COM (compiled in with -DFREHD). All code in sdio.c/h.
+
+   Hardware-tested on TRS-80 Model 4P with Montezuma Micro CP/M 2.2 and
+   FreHD hard disk emulator.
+
+   Key fixes during hardware testing (builds 33-44):
+
+   - SIZE2 partial-block (build 36): last block of an odd-record file
+     returns only 128 bytes from the FreHD. Reading SIZE2 after DRQ gives
+     the actual byte count (0 = 256); only that many bytes are CRC'd and
+     written. Fixes CRC verify failures on odd-sized files.
+
+   - Montezuma Micro CP/M 2.2 f_exist() (builds 38-39): Montezuma Micro's
+     patched BDOS returns a user-0 directory entry as fallback when a file
+     is not found in the target user area. The original SRCHNXT loop to
+     skip these caused an infinite lockup (the patched BDOS applies the
+     same fallback to SRCHNXT). Fix: single SRCHFST call; check entry[0]
+     against pf->user — if different, the file is not in the target area.
+
+   - SD directory pre-flight (build 40): the FreHD cannot create directories.
+     Before a batch CP/M->SD copy, sd_dir_check() opens the target directory
+     via OPENDIR. Single clear error if the directory does not exist, instead
+     of one error message per file in the batch.
+
+   - sd_list_wild false match (builds 42-43): SD filenames with name parts
+     longer than 8 characters (e.g. NIALLCONV.COM) caused the FCB conversion
+     to drop the extension silently (name loop fills 8 bytes, exits on 'V'
+     not '.', so '.' check fails). Fix: after FCB conversion, reconstruct
+     the 8.3 name from the FCB bytes and re-match. If the extension was lost,
+     skip the entry with a visible warning and a "To copy manually" hint.
+
+   - IA wildcard truncation (build 44): IA: filenames with name parts longer
+     than 8 characters are copied with the name silently truncated to 8 chars
+     (make_fcb() scans past the overflow and correctly captures the extension).
+     Truncated copies now show "[truncated]" on the copy line. If a collision
+     occurs and the user declines, a rename hint is shown.
+
+   Version 1.00 (32)
    - Fix: TPA allocator reserved no space for the stack. z88dk CP/M startup
      sets SP to the BDOS address (top of TPA); stack grows down from there.
      Allocating all free TPA for g_iobuf left the stack nowhere to go,
@@ -590,13 +633,13 @@ static void do_copy_ia(void) {
                 ia_print_name(&ia_file);
                 con_str(" to ");
                 print_fname(&cpm);
-                /* Note truncation: stem >8 chars means FCB name field is full
-                 * and the original name has a 9th char that is not a dot. */
+                /* Note truncation: name part >8 chars means FCB name field is
+                 * full and the original has a 9th character that is not a dot. */
                 if (src_pf.fcb.f[7] != ' ' && nm_part[8] && nm_part[8] != '.')
                     con_str(" [truncated]");
                 if (!ia_copy_ia_to_cpm(&ia_file, &cpm)) {
-                    /* If truncation caused a collision the user declined,
-                     * show the same rename hint as the SD long-name warning. */
+                    /* Truncation collision that the user declined: show the
+                     * same rename hint as the SD long-name skip warning. */
                     if (!g_ferror && src_pf.fcb.f[7] != ' ' &&
                             nm_part[8] && nm_part[8] != '.') {
                         con_str("   To copy: " PROG_NAME " IA:");
