@@ -6,16 +6,16 @@ SET PATH=%Z88DK_DIR%bin;%PATH%
 
 echo.
 echo ****************************************************************************
-echo  CPPIP / NPPIP Build Script
+echo  CPPIP / NPPIP / FPPIP Build Script
 echo ****************************************************************************
 
 if /I "%1"=="debug" goto build_debug
 
 :build_release
-echo  Building CPPIP.COM (standard — IA available via /N)...
-zcc +cpm -vn -create-app -compiler=sdcc --opt-code-size -DNABU_IA ^
+echo  Building CPPIP.COM (standard — IA available via /N, SD available)...
+zcc +cpm -vn -create-app -compiler=sdcc --opt-code-size -DNABU_IA -DFREHD ^
     -I..\NABULIB ^
-    ppip.c cmdparse.c filename.c diskio.c crc.c iaio.c console.c ^
+    ppip.c cmdparse.c filename.c diskio.c crc.c iaio.c sdio.c console.c ^
     -o CPPIP
 if errorlevel 1 goto fail
 
@@ -24,6 +24,12 @@ zcc +cpm -vn -create-app -compiler=sdcc --opt-code-size -DNABU_IA -DNABU_DEFAULT
     -I..\NABULIB ^
     ppip.c cmdparse.c filename.c diskio.c crc.c iaio.c console.c ^
     -o NPPIP
+if errorlevel 1 goto fail
+
+echo  Building FPPIP.COM (FreHD edition — SD always active)...
+zcc +cpm -vn -create-app -compiler=sdcc --opt-code-size -DFREHD -DFREHD_DEFAULT ^
+    ppip.c cmdparse.c filename.c diskio.c crc.c sdio.c console.c ^
+    -o FPPIP
 if errorlevel 1 goto fail
 
 goto sizes
@@ -40,7 +46,7 @@ goto sizes
 :sizes
 echo.
 echo  Output:
-for %%F in (CPPIP.COM NPPIP.COM) do (
+for %%F in (CPPIP.COM NPPIP.COM FPPIP.COM) do (
     if exist %%F echo    %%F  %%~zF bytes
 )
 echo.

@@ -242,6 +242,7 @@
 #include "console.h"
 #include "crc.h"
 #include "iaio.h"
+#include "sdio.h"
 
 /* ---- Global definitions ---- */
 
@@ -255,6 +256,13 @@ ia_t      g_ia_src;
 ia_t      g_ia_dst;
 bool      g_src_is_ia  = false;
 bool      g_dst_is_ia  = false;
+
+#ifdef FREHD
+sd_t      g_sd_src;
+sd_t      g_sd_dst;
+bool      g_src_is_sd  = false;
+bool      g_dst_is_sd  = false;
+#endif
 
 uint8_t  *g_iobuf      = NULL;  /* TPA-allocated in main() */
 uint16_t  g_iobuf_recs = 0;    /* set in main() */
@@ -426,6 +434,18 @@ static void do_con_copy(void) {
     f_close(&dst);
 }
 
+/* Check for Ctrl-C between files.
+ * Uses BDOS 6 directly -- returns 0 immediately if no key is waiting.
+ * Avoids BDOS 11 (CONSTAT) which gives false positives on CloudCP/M
+ * after HCCA communication, causing con_in_ne() to block indefinitely. */
+static bool check_abort(void) {
+    if ((uint8_t)bdos(BDOS_DIRIO, 0xFF) == 0x03) {
+        con_str("^C\r\n");
+        return true;
+    }
+    return false;
+}
+
 /* ---- IA: argument detector ---- */
 #ifdef NABU_IA
 
@@ -494,18 +514,6 @@ static bool is_ia_arg(int idx) {
     if (idx >= g_argc) return false;
     s = g_argv[idx];
     return (s[0] == 'I' && s[1] == 'A' && s[2] == ':');
-}
-
-/* Check for Ctrl-C between files.
- * Uses BDOS 6 directly -- returns 0 immediately if no key is waiting.
- * Avoids BDOS 11 (CONSTAT) which gives false positives on CloudCP/M
- * after HCCA communication, causing con_in_ne() to block indefinitely. */
-static bool check_abort(void) {
-    if ((uint8_t)bdos(BDOS_DIRIO, 0xFF) == 0x03) {
-        con_str("^C\r\n");
-        return true;
-    }
-    return false;
 }
 
 /* ---- IA copy dispatch (Phase 5) ---- */
@@ -729,6 +737,263 @@ static void do_copy_ia(void) {
 }
 #endif /* NABU_IA */
 
+/* ---- SD: argument detector and copy dispatch (Phase 6) ---- */
+#ifdef FREHD
+
+static bool is_sd_arg(int idx) {
+    const char *s;
+    if (idx >= g_argc) return false;
+    s = g_argv[idx];
+    return (s[0] == 'S' && s[1] == 'D' && s[2] == ':');
+}
+
+static void do_copy_sd(void) {
+    pfile_t  cpm;
+    pfile_t  src_tmpl;
+    pfile_t  dst_tmpl;
+    pfile_t  src_pf;
+    sd_t     sd_file;
+    uint8_t  i;
+    uint16_t n;
+    uint16_t cnt;
+    uint8_t *narg;
+    uint8_t  saved_dr;
+    uint8_t  saved_user;
+
+    /* Abort if FreHD is not detected */
+    if (!sd_is_frehd()) {
+        con_str(" SD: unavailable - FreHD interface not found\r\n");
+        return;
+    }
+
+    /* SD -> SD: not supported */
+    if (g_src_is_sd && g_dst_is_sd) {
+        con_str(" ERROR: SD: to SD: copy not supported\r\n");
+        return;
+    }
+
+    /* SD -> CPM */
+    if (g_src_is_sd) {
+        if (g_argc < 2) {
+            con_str(" Usage: " PROG_NAME " SD:src dest\r\n");
+            return;
+        }
+        if (!init_pfile(1, &cpm)) return;
+
+        if (sd_has_wild(&g_sd_src)) {
+            /* Wildcard SD source: enumerate matching files */
+
+            /* Save dest template; bare drive -> all-? wildcard */
+            dst_tmpl = cpm;
+            if (dst_tmpl.fcb.f[0] == ' ') {
+                for (i = 0; i < 8; i++) dst_tmpl.fcb.f[i] = '?';
+                for (i = 0; i < 3; i++) dst_tmpl.fcb.t[i] = '?';
+            }
+
+            cnt = sd_list_wild(&g_sd_src);
+            if (cnt == 0) {
+                con_str(" No SD file(s) found\r\n");
+                return;
+            }
+            for (n = 0; n < cnt; n++) {
+                if (check_abort()) return;
+                sd_list_item(n, &g_sd_src, &sd_file);
+
+                /* Build CP/M FCB from SD filename (no path component) */
+                {
+                    const char *fn = sd_file.name;
+                    uint8_t plen = 0;
+                    uint8_t k;
+                    /* Find last '/' to get filename part */
+                    for (k = 0; k < sd_file.namelen; k++)
+                        if (fn[k] == '/' || fn[k] == '\\') plen = (uint8_t)(k + 1);
+                    if (!make_fcb(&fn[plen], &src_pf)) {
+                        con_str("\r\nERROR: invalid SD filename: ");
+                        con_str(sd_file.name);
+                        con_nl();
+                        continue;
+                    }
+                }
+                match_wild(&cpm, &dst_tmpl, &src_pf);
+
+                sd_print_name(&sd_file);
+                con_str(" to ");
+                print_fname(&cpm);
+                if (!sd_copy_sd_to_cpm(&sd_file, &cpm)) continue;
+
+                if (g_opts.verify) {
+                    con_str(" - Verifying");
+                    if (!crc_file(&cpm)) {
+                        con_str("\r\nERROR: can't verify dest\r\n");
+                        continue;
+                    }
+                    if (g_crcval != g_crcval2) {
+                        con_str(" FAILED\r\n CRC failed! Please check your disk.\r\n");
+                        con_out('\007');
+                        continue;
+                    }
+                    con_str(" OK");
+                    if (g_opts.report) { con_str("  CRC: "); con_hex16(g_crcval2); }
+                }
+                con_nl();
+
+                if (g_opts.movf) {
+                    con_str("  - Erasing SD: source not supported\r\n");
+                }
+            }
+            return;
+        }
+
+        /* Single SD source file */
+
+        /* Bare drive dest (e.g. D: or D6:) — use SD source filename */
+        if (cpm.fcb.f[0] == ' ') {
+            const char *fn = g_sd_src.name;
+            uint8_t plen = 0;
+            uint8_t k;
+            for (k = 0; k < g_sd_src.namelen; k++)
+                if (fn[k] == '/' || fn[k] == '\\') plen = (uint8_t)(k + 1);
+            saved_dr   = cpm.fcb.dr;
+            saved_user = cpm.user;
+            if (!make_fcb(&fn[plen], &cpm)) {
+                con_str("\r\nERROR: invalid SD source filename\r\n");
+                return;
+            }
+            cpm.fcb.dr = saved_dr;
+            cpm.user   = saved_user;
+        }
+
+        sd_print_name(&g_sd_src);
+        con_str(" to ");
+        print_fname(&cpm);
+        if (!sd_copy_sd_to_cpm(&g_sd_src, &cpm)) return;
+
+        if (g_opts.verify) {
+            con_str(" - Verifying");
+            if (!crc_file(&cpm)) {
+                con_str("\r\nERROR: can't verify dest\r\n");
+                return;
+            }
+            if (g_crcval != g_crcval2) {
+                con_str(" FAILED\r\n CRC failed! Please check your disk.\r\n");
+                con_out('\007');
+                return;
+            }
+            con_str(" OK");
+            if (g_opts.report) { con_str("  CRC: "); con_hex16(g_crcval2); }
+        }
+        con_nl();
+
+        if (g_opts.movf) {
+            con_str("  - Erasing SD: source not supported\r\n");
+        }
+        return;
+    }
+
+    /* CPM -> SD (with CP/M wildcard expansion on the source side) */
+    if (!init_pfile(0, &src_tmpl)) return;
+    if (expand_wild(&src_tmpl) == 0) {
+        con_str(" No file(s) found\r\n");
+        return;
+    }
+
+    for (n = 0; n < g_nargc; n++) {
+        sd_t dst_sd;
+        if (check_abort()) return;
+
+        narg = &g_nargbuf[n * FCB_FNAME_LEN];
+        cpm.fcb.dr = src_tmpl.fcb.dr;
+        cpm.user   = src_tmpl.user;
+        for (i = 0; i < 8; i++) cpm.fcb.f[i] = narg[i];
+        for (i = 0; i < 3; i++) cpm.fcb.t[i] = narg[8 + i];
+        zero_fcb_ctrl(&cpm);
+
+        /* Resolve SD destination name:
+         *  - bare "SD:": derive name from CP/M source FCB
+         *  - explicit "SD:name": use as-is */
+        if (g_sd_dst.namelen == 0) {
+            /* Build 8.3 name from FCB (e.g. "FILE.COM") */
+            uint8_t k = 0;
+            uint8_t j;
+            for (j = 0; j < 8; j++) {
+                uint8_t c = cpm.fcb.f[j] & 0x7F;
+                if (c == ' ') break;
+                dst_sd.name[k++] = c;
+            }
+            if ((cpm.fcb.t[0] & 0x7F) != ' ') {
+                dst_sd.name[k++] = '.';
+                for (j = 0; j < 3; j++) {
+                    uint8_t c = cpm.fcb.t[j] & 0x7F;
+                    if (c == ' ') break;
+                    dst_sd.name[k++] = c;
+                }
+            }
+            dst_sd.name[k] = '\0';
+            dst_sd.namelen = k;
+        } else {
+            dst_sd = g_sd_dst;
+        }
+
+        /* Build FCB for wildcard dest resolution if dest has wildcard */
+        if (g_sd_dst.namelen > 0 && sd_has_wild(&g_sd_dst)) {
+            if (!make_fcb(g_sd_dst.name, &dst_tmpl)) {
+                con_str("\r\nERROR: invalid SD dest pattern\r\n");
+                return;
+            }
+            match_wild(&src_pf, &dst_tmpl, &cpm);
+            /* Rebuild dst_sd.name from resolved FCB */
+            {
+                uint8_t k = 0;
+                uint8_t j;
+                for (j = 0; j < 8; j++) {
+                    uint8_t c = src_pf.fcb.f[j] & 0x7F;
+                    if (c == ' ') break;
+                    dst_sd.name[k++] = c;
+                }
+                if ((src_pf.fcb.t[0] & 0x7F) != ' ') {
+                    dst_sd.name[k++] = '.';
+                    for (j = 0; j < 3; j++) {
+                        uint8_t c = src_pf.fcb.t[j] & 0x7F;
+                        if (c == ' ') break;
+                        dst_sd.name[k++] = c;
+                    }
+                }
+                dst_sd.name[k] = '\0';
+                dst_sd.namelen = k;
+            }
+        }
+
+        print_fname(&cpm);
+        con_str(" to ");
+        sd_print_name(&dst_sd);
+        if (!sd_copy_cpm_to_sd(&cpm, &dst_sd)) continue;
+
+        if (g_opts.verify) {
+            con_str(" - Verifying");
+            if (!sd_crc_file(&dst_sd)) {
+                con_str("\r\nERROR: can't verify SD dest\r\n");
+                continue;
+            }
+            if (g_crcval != g_crcval2) {
+                con_str(" FAILED\r\n CRC failed! Please check your SD card.\r\n");
+                con_out('\007');
+                continue;
+            }
+            con_str(" OK");
+            if (g_opts.report) { con_str("  CRC: "); con_hex16(g_crcval2); }
+        }
+        con_nl();
+
+        if (g_opts.movf) {
+            con_str("  - Erasing ");
+            print_fname(&cpm);
+            con_nl();
+            f_delete(&cpm);
+        }
+    }
+}
+#endif /* FREHD */
+
 /* ---- Main copy loop (Phase 2: wildcard expansion) ---- */
 static void do_copy(void) {
     pfile_t  src_tmpl, dst_tmpl, src, dst, last_dst;
@@ -743,6 +1008,18 @@ static void do_copy(void) {
         if (g_src_is_ia) ia_init(&g_ia_src, g_argv[0] + 3);
         if (g_dst_is_ia) ia_init(&g_ia_dst, g_argv[1] + 3);
         do_copy_ia();
+        return;
+    }
+#endif
+
+#ifdef FREHD
+    /* Route to SD handler if either argument carries an "SD:" prefix */
+    if (is_sd_arg(0) || is_sd_arg(1)) {
+        g_src_is_sd = is_sd_arg(0);
+        g_dst_is_sd = is_sd_arg(1);
+        if (g_src_is_sd) sd_init(&g_sd_src, g_argv[0] + 3);
+        if (g_dst_is_sd) sd_init(&g_sd_dst, g_argv[1] + 3);
+        do_copy_sd();
         return;
     }
 #endif
@@ -848,9 +1125,13 @@ void main(void) {
     }
 
     /* Version banner — shows clean version; build number in /H help title */
-#ifdef NABU_DEFAULT
+#if defined(NABU_DEFAULT)
     con_str(PROG_NAME " v" PPIP_VERSION " NABU Edition");
     if (ia_is_nabu()) con_str(" [CloudCP/M]");
+    con_str("\r\n");
+#elif defined(FREHD_DEFAULT)
+    con_str(PROG_NAME " v" PPIP_VERSION " FreHD Edition");
+    con_str(sd_is_frehd() ? " [FreHD Detected]" : " [FreHD not found]");
     con_str("\r\n");
 #else
     con_str(PROG_NAME " v" PPIP_VERSION "\r\n");
