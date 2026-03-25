@@ -990,6 +990,22 @@ static void do_copy_sd(void) {
         return;
     }
 
+    /* Pre-flight: verify destination directory exists before copying */
+    saved_dr = 0;
+    for (i = 0; i < g_sd_dst.namelen; i++)
+        if (g_sd_dst.name[i] == '/') saved_dr = (uint8_t)(i + 1);
+    if (saved_dr > 0) {
+        sd_file = g_sd_dst;
+        sd_file.namelen = saved_dr;
+        g_ferror = 0;
+        if (!sd_dir_check(&sd_file)) {
+            con_str(" ERROR: SD: directory not found: ");
+            sd_print_name(&g_sd_dst);
+            con_nl();
+            return;
+        }
+    }
+
     for (n = 0; n < g_nargc; n++) {
         if (check_abort()) return;
 
