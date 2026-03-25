@@ -9,9 +9,10 @@ PPIP
 *.map
 *.lst
 
-# Archive and release folders for local builds
+# Archive, release, and research folders for local use
 archive/
 release/
+research/
 
 # Project internals - not for public repo
 PLAN.md
