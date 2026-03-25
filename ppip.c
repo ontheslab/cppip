@@ -990,17 +990,6 @@ static void do_copy_sd(void) {
         return;
     }
 
-    /* Pre-flight: if SD destination has a path component, verify the
-     * directory exists.  The FreHD cannot create directories. */
-    for (i = 0; i < g_sd_dst.namelen; i++)
-        if (g_sd_dst.name[i] == '/') break;
-    if (i < g_sd_dst.namelen && !sd_dir_check(&g_sd_dst)) {
-        con_str(" ERROR: SD: directory not found: ");
-        sd_print_name(&g_sd_dst);
-        con_nl();
-        return;
-    }
-
     for (n = 0; n < g_nargc; n++) {
         if (check_abort()) return;
 
