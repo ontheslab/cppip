@@ -1030,7 +1030,10 @@ static void do_copy_sd(void) {
         print_fname(&cpm);
         con_str(" to ");
         sd_print_name(&dst_sd);
-        if (!sd_copy_cpm_to_sd(&cpm, &dst_sd)) continue;
+        if (!sd_copy_cpm_to_sd(&cpm, &dst_sd)) {
+            if (g_sd_create_err) return;  /* directory missing or unwritable - abort */
+            continue;
+        }
 
         if (g_opts.verify) {
             con_str(" - Verifying");

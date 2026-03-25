@@ -44,6 +44,10 @@ bool     sd_dir_check(const sd_t *sd);
 /* Return true if sd->name contains a wildcard character (* or ?) */
 bool     sd_has_wild(const sd_t *sd);
 
+/* Set by sd_open_wr when a file create fails (SD_ST_ERROR).
+ * Caller can check this to abort a batch loop after the first failure. */
+extern bool g_sd_create_err;
+
 /* Enumerate SD files matching pattern; results stored in g_nargbuf.
  * Returns count of matches found (0 = none). */
 uint16_t sd_list_wild(const sd_t *pattern);
