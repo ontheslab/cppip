@@ -67,7 +67,7 @@ Build notes:
 
   Builds 45-47: SD: subdirectory error handling reworked.  A pre-flight
   OPENDIR check added at build 40 was incompatible with the FreHD
-  emulator (OPENDIR unsupported).  Replaced with a flag-based abort on
+  emulator (OPENDIR not working/supported).  Replaced with a flag-based abort on
   first create failure; works on both emulator and real hardware.
 
 

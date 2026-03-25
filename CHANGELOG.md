@@ -56,7 +56,7 @@ All notable changes to CPPIP / NPPIP / FPPIP are documented here.
   unused code. Corrected at build 42; NPPIP is IA-only as intended.
 - Builds 45-47: SD: subdirectory error handling was reworked. A pre-flight
   OPENDIR check added at build 40 was found to be incompatible with the
-  FreHD emulator (OPENDIR unsupported). Replaced with a flag-based abort on
+  FreHD emulator (OPENDIR not working/supported). Replaced with a flag-based abort on
   first create failure, which works correctly on both emulator and real hardware.
 
 ---
