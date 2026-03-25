@@ -78,16 +78,16 @@ bool f_write(pfile_t *pf) {
 /*
  * Check if a file exists in the target user area.
  * Returns the directory offset (0-3) if found, 0xFF if not found.
- * Uses the default DMA buffer (0x0080) as scratch space.
+ * Uses the default DMA (Direct Memory Access) buffer (0x0080) as scratch space.
  *
- * Some CP/M 2.2 implementations (e.g. Montezuma Micro) fall back to
- * user 0 when a complete filename is not found in the current user area,
- * causing SRCHFST to return a user-0 entry when searching from user 1.
- * We filter these out by checking the directory entry's user byte
- * (byte 0 of the 32-byte entry at DMA + offset*32) and continuing the
- * search with SRCHNXT until we find a match in the correct user area.
- * On standard CP/M, SRCHFST only returns entries from the current user
- * area, so the check passes immediately and behaviour is unchanged.
+ * Some CP/M 2.2 implementations (e.g. Montezuma Micro) fall back to user 0
+ * when a filename is not found in the current user area, causing SRCHFST
+ * (Search First BDOS call) to return a user-0 entry.  We issue a single
+ * SRCHFST and check the returned entry's user byte: if it does not match the
+ * target user area, the file is treated as not found.  No SRCHNXT (Search
+ * Next) loop is used - on the patched BDOS it would loop indefinitely.
+ * On standard CP/M, SRCHFST only returns entries from the current user area,
+ * so the check passes immediately and behaviour is unchanged.
  */
 uint8_t f_exist(pfile_t *pf) {
     uint8_t  offset;

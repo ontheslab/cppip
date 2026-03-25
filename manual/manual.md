@@ -1,8 +1,8 @@
 # CPPIP - CP/M File Copy Utility
-## User Manual - v1.00 (32)  [Document revision 1.01]
+## User Manual - v1.10 (44)  [Document revision 1.10]
 
 *A C reimplementation of PPIP v1.8 by D. Jewett III (1985-1988).*
-*C port and NABU IA extension by Intangybles, 2026.*
+*C port, NABU IA extension, and FreHD SD extension by Intangybles, 2026.*
 
 ---
 
@@ -16,20 +16,22 @@
 6. [Examples](#examples)
 7. [CON: Editor](#con-editor)
 8. [IA: Internet Adapter (NABU)](#ia-internet-adapter-nabu)
-9. [File Attributes](#file-attributes)
-10. [CRC Verify](#crc-verify)
-11. [Cancelling](#cancelling)
-12. [Messages](#messages)
-13. [Notes](#notes)
+9. [SD: FreHD Card](#sd-frehd-card)
+10. [File Attributes](#file-attributes)
+11. [CRC Verify](#crc-verify)
+12. [Cancelling](#cancelling)
+13. [Messages](#messages)
+14. [Notes](#notes)
 
 ---
 
 ## Overview
 
-CPPIP is a fast, flexible file copy utility for CP/M 2.2. It is designed for
-quick single-file or wildcard copies without loading a full directory browser.
-CRC verification is built in, and the NABU IA extension lets you copy files to
-and from the RetroNET Internet Adapter file store.
+CPPIP is a file copy utility for CP/M 2.2, designed for single-file or
+wildcard copies without loading a full directory browser.
+CRC verification is built in. Two extensions add access to external file stores
+from the CP/M command line: the NABU RetroNET Internet Adapter (`IA:`) and the
+FreHD SD card emulator (`SD:`).
 
 Key features:
 
@@ -38,17 +40,20 @@ Key features:
 - CRC-16 verification after copy with automatic retry
 - Move mode: copy then delete the source
 - Type text directly from the console into a file
-- **NABU IA extension:** copy files to and from the NABU RetroNET Internet
-  Adapter file store using the `IA:` prefix
+- **NABU IA extension:** copy files to and from the RetroNET Internet Adapter
+  file store using the `IA:` prefix
+- **FreHD SD extension:** copy files to and from an SD card via the FreHD
+  hard disk emulator using the `SD:` prefix
 
-Two builds are distributed:
+Three builds are distributed:
 
 | Binary | Description |
 |--------|-------------|
-| `CPPIP.COM` | Standard build. IA: available via `/N` or on CloudCP/M. |
-| `NPPIP.COM` | NABU edition. IA: always active - no switch required. |
+| `CPPIP.COM` | Standard build. IA: available via `/N` or on CloudCP/M. SD: compiled in (requires FreHD hardware). |
+| `NPPIP.COM` | NABU edition. IA: always active, no switch needed. No SD: code. |
+| `FPPIP.COM` | FreHD edition. SD: always active. No IA: code. |
 
-Both are functionally identical for standard CP/M file operations.
+All three are functionally identical for standard CP/M file operations.
 
 ---
 
@@ -111,8 +116,7 @@ CPPIP FILE.DAT B3:      copy to drive B, user area 3
 ## Options
 
 Options are introduced by `/` and can appear anywhere in the command line.
-They can be bundled: `/VC` is the same as `/V /C`. Each option toggles its
-state each time it appears.
+They can be combined: `/VC` is the same as `/V /C`.
 
 | Option | Name | Description |
 |--------|------|-------------|
@@ -221,6 +225,15 @@ The `/X/` and `X:/` formats are strongly recommended for all subfolder work.
 They automatically create missing directory trees on write, and find files
 regardless of whether they were stored with upper or lowercase names.
 
+### Long filenames on IA:
+
+The IA file store runs on a PC server with no filename length restriction.
+Files with names longer than 8 characters (e.g. `NIALLCONV.COM`) are copied
+to CP/M with the name truncated to 8 characters (`NIALLCON.COM`). The extension
+is always preserved. A `[truncated]` note appears on the copy line so you can
+see that the name changed. If the truncated name collides with an existing file,
+the usual `Exists! Delete?` prompt appears.
+
 ### IA examples
 
 Using NPPIP (IA: always active):
@@ -251,6 +264,59 @@ See `IA-GUIDE.TXT` for the full IA path reference and troubleshooting guide.
 
 ---
 
+## SD: FreHD Card
+
+The `SD:` prefix accesses files directly on an SD card via the FreHD
+hard disk emulator connected to the Z80 I/O bus.
+
+`SD:` is available in CPPIP.COM and FPPIP.COM. It requires FreHD hardware to
+be present. On systems without FreHD, `SD:` commands will fail cleanly.
+
+See `FREHD-GUIDE.TXT` for full setup and usage details.
+
+### Which binary to use
+
+| Binary | Use when |
+|--------|----------|
+| `FPPIP.COM` | You have FreHD and want the smallest, dedicated SD: binary. |
+| `CPPIP.COM` | You want both SD: and IA: support in one binary. |
+
+### SD path formats
+
+```
+SD:FILE.COM             file at the root of the SD card
+SD:SUBDIR/FILE.COM      file in a subdirectory (directory must already exist)
+SD:SUBDIR/*.COM         wildcard - copy all .COM files from SUBDIR
+```
+
+Subdirectories on the SD card must already exist. FreHD does not create
+directories automatically.
+
+### Long filenames on SD:
+
+The SD card uses FAT format and can hold files with names longer than 8
+characters. CP/M can only store 8-character names. If a wildcard copy
+encounters a file whose name is longer than 8 characters (e.g. `NIALLCONV.COM`),
+it is skipped with a visible warning. You can still copy it individually by
+specifying a short destination name:
+
+```
+FPPIP SD:NIALLCONV.COM A:NIALL.COM
+```
+
+### SD examples
+
+```
+FPPIP SD:FILE.COM A:                    copy from SD to current drive
+FPPIP A:FILE.COM SD:                    copy from CP/M to SD root
+FPPIP SD:*.DAT A1: /V                   copy all .DAT files from SD to A: user 1 with verify
+FPPIP A:*.COM SD:BACKUP/ /V             copy all .COM files from A: to SD BACKUP folder
+FPPIP SD:SUBDIR/*.COM A: /M             move all .COM from SD subfolder to A: (deletes SD copies)
+FPPIP SD:PROG.COM A: /VC               copy with verify and print CRC value
+```
+
+---
+
 ## File Attributes
 
 CPPIP copies the read-only attribute from the source file to the destination.
@@ -258,7 +324,7 @@ CPPIP copies the read-only attribute from the source file to the destination.
 If the destination file already exists, CPPIP will ask before overwriting:
 
 - **Read/write file:** `Exists! Delete?` - press Y to overwrite, N to skip.
-- **Read-only file:** `RO! Delete?` - press Y to overwrite, N to skip.
+- **Read-only file:** `R/O! Delete?` - press Y to overwrite, N to skip.
 - **Press Ctrl-C** at either prompt to cancel and return to the CP/M command prompt.
 
 `/E` skips the prompt for read/write files.
@@ -268,9 +334,9 @@ If the destination file already exists, CPPIP will ask before overwriting:
 
 ## CRC Verify
 
-When `/V` is active, CPPIP computes a CRC-16 (CCITT) checksum of the source
-file as it is read, then re-reads the destination and computes the same
-checksum.
+When `/V` is active, CPPIP computes a CRC-16 (CCITT - the same algorithm used
+by XMODEM and KERMIT) checksum of the source file as it is read, then re-reads
+the destination and computes the same checksum.
 
 **CP/M to CP/M copies:**
 
@@ -278,15 +344,15 @@ checksum.
 - **Mismatch:** the destination is deleted and the copy is retried. Up to
   3 attempts are made before CPPIP gives up and reports a CRC failure.
 
-**Copies involving IA: (either source or destination):**
+**Copies involving IA: or SD: (either source or destination):**
 
 - **Match:** `OK` is shown.
 - **Mismatch:** `CRC failed!` is shown. The copy is not retried.
-  Check the IA server connection and try again manually.
+  For SD: copies, check the FreHD connection. For IA:, check the server.
 
-`/C` prints the CRC value in hexadecimal. This is the same CRC algorithm used
-by XMODEM, KERMIT, and other standard CP/M transfer tools, so values can be
-cross-checked.
+`/C` prints the CRC value in hexadecimal after each verified copy. Values
+can be cross-checked with XMODEM, KERMIT, and other standard CP/M transfer
+tools that use the same CRC-16 algorithm.
 
 Move mode (`/M`) forces `/V` automatically.
 
@@ -308,7 +374,7 @@ operation and return to the CP/M command prompt immediately.
 | Message | Meaning |
 |---------|---------|
 | `Exists! Delete?` | Destination exists. Press Y to overwrite, N to skip. |
-| `RO! Delete?` | Destination is read-only. Press Y to overwrite, N to skip. |
+| `R/O! Delete?` | Destination is read-only. Press Y to overwrite, N to skip. |
 | `same` | Source and destination resolve to the same file - skipped. |
 | `Duplicate!` | Wildcard expansion would write the same destination twice - skipped. |
 | `No file(s) found` | No source files matched the pattern. |
@@ -316,24 +382,27 @@ operation and return to the CP/M command prompt immediately.
 | `OK` | Copy complete (and verified if `/V` was used). |
 | `CRC: XXXX` | CRC value in hex (shown with `/C`). |
 | `FAILED - retrying...` | CRC mismatch on CP/M copy - retrying. |
-| `CRC failed! Please check your disk.` | All retries exhausted (CP/M), or IA verify failed. |
-| `Disk full. Copy deleted.` | Destination disk has no space. Partial file removed. |
+| `CRC failed!` | All retries exhausted (CP/M), or IA:/SD: verify failed. |
+| `ERROR: Disk full. Copy deleted.` | Destination disk has no space. Partial file removed. |
 | `^C` | Ctrl-C pressed - batch stopped, remaining files skipped. |
+| `[truncated]` | IA: source filename was longer than 8 chars - name shortened to fit CP/M. |
 | `ERROR: IA: directory not found` | IA subfolder does not exist. Use `/X/` format or check spelling. |
 | `ERROR: IA file not found` | IA file does not exist at the given path. |
 | `IA: unavailable - use /N` | CPPIP on non-CloudCP/M - add `/N` or use NPPIP. |
+| `ERROR: SD: directory not found` | SD: target subdirectory does not exist. Create it on the SD card first. |
+| `ERROR: SD: file not found` | SD: source file does not exist. |
+| `SD name too long for CP/M, skipped` | SD: source file has a name > 8 chars - cannot be stored on CP/M. Copy manually with a short destination name. |
 
 ---
 
 ## Notes
 
-- CPPIP targets CP/M 2.2. It has been tested on NABU CloudCP/M, RomWBW
-  CP/M 2.2, TRS-80 Model 4P CP/M 2.2, and Kaypro CP/M 2.2.
-- ZRDOS aware: if BDOS 48 returns non-zero, the post-write disk reset is
-  skipped. Not yet tested on ZRDOS.
+- CPPIP targets CP/M 2.2. Tested on: NABU CloudCP/M, RomWBW CP/M 2.2,
+  TRS-80 Model 4P with Montezuma Micro CP/M 2.2, and Kaypro CP/M 2.2.
+- ZRDOS compatible: the post-write disk reset is skipped when running under ZRDOS.
 - The original PPIP v1.8 by D. Jewett III is in the public domain.
   CPPIP is copyright (c) Intangybles 2026.
 
 ---
 
-*CPPIP/NPPIP v1.00 (32) - Intangybles 2026*
+*CPPIP/NPPIP/FPPIP v1.10 (44) - Intangybles 2026*
