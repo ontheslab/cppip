@@ -78,12 +78,18 @@ __sfr __at(0xCF) s_sd_status;   /* STATUS  */
 /* ------------------------------------------------------------------ */
 
 /* Poll STATUS until BUSY clears.
- * Sets g_ferror and returns if no device (STATUS == 0xFF). */
+ * Requires 4 consecutive 0xFF readings before declaring no-device;
+ * a single transient 0xFF (e.g. after FA_CREATE_ALWAYS) is ignored. */
 static void sd_wait(void) {
     uint8_t st;
+    uint8_t none_cnt = 0;
     do {
         st = s_sd_status;
-        if (st == SD_ST_NONE) { g_ferror = true; return; }
+        if (st == SD_ST_NONE) {
+            if (++none_cnt >= 4) { g_ferror = true; return; }
+        } else {
+            none_cnt = 0;
+        }
     } while (st & SD_ST_BUSY);
 }
 
@@ -227,6 +233,30 @@ void sd_close(void) {
     sd_wait();
 }
 
+/* Return true if the directory path in sd->name exists on the SD card.
+ * Trailing '/' is stripped before the OPENDIR call (e.g. "FILES/" -> "FILES").
+ * Does not consume any READDIR entries; the FreHD resets on the next command. */
+bool sd_dir_check(const sd_t *sd) {
+    uint8_t path_len;
+    uint8_t i;
+
+    path_len = sd->namelen;
+    while (path_len > 0 && sd->name[path_len - 1] == '/') path_len--;
+    if (path_len == 0) return true;     /* root always exists */
+
+    s_sd_size = (uint8_t)(path_len + 1);  /* path + NUL */
+    s_sd_cmd  = SD_CMD_OPENDIR;
+    sd_wait();
+    if (g_ferror) return false;
+
+    for (i = 0; i < path_len; i++) s_sd_data = (uint8_t)sd->name[i];
+    s_sd_data = 0;
+    sd_wait();
+    if (g_ferror) return false;
+
+    return !(s_sd_status & SD_ST_ERROR);
+}
+
 /* ------------------------------------------------------------------ */
 /* Copy: SD -> CP/M                                                     */
 /* Reads 256-byte blocks from FreHD (2 CP/M records per READFILE call) */
@@ -235,6 +265,10 @@ bool sd_copy_sd_to_cpm(const sd_t *src, pfile_t *dst) {
     uint8_t st;
     uint16_t i;
     uint8_t *p;
+    uint16_t blk_bytes;
+    uint8_t blk_recs;
+
+    g_ferror = false;   /* clear any stale error from a previous iteration */
 
     if (!sd_open_rd(src)) return false;
     if (!new_file(dst)) { sd_close(); return false; }
@@ -246,28 +280,51 @@ bool sd_copy_sd_to_cpm(const sd_t *src, pfile_t *dst) {
         s_sd_size = 0;
         s_sd_cmd  = SD_CMD_READFILE;
         sd_wait();
-        if (g_ferror) { sd_close(); return false; }
+        if (g_ferror) {
+            f_delete(dst);          /* remove partial CP/M file */
+            sd_close();
+            return false;
+        }
 
         st = s_sd_status;
         if (!(st & SD_ST_DRQ)) break;   /* DRQ clear: no more data */
 
-        /* Read 256 bytes into g_iobuf (2 CP/M records) */
-        p = g_iobuf;
-        for (i = 0; i < (uint16_t)(2 * REC_SIZE); i++) *p++ = s_sd_data;
+        /* SIZE2 gives actual byte count (0 = 256) */
+        blk_bytes = s_sd_size;
+        if (blk_bytes == 0) blk_bytes = 256;
+        blk_recs = (uint8_t)(blk_bytes / REC_SIZE);  /* 1 or 2 */
 
-        /* Accumulate source CRC (if verify requested) */
+        /* Read blk_bytes into g_iobuf */
+        p = g_iobuf;
+        for (i = 0; i < blk_bytes; i++) *p++ = s_sd_data;
+
+        /* Accumulate source CRC for valid records only */
         if (g_opts.verify) {
             crc_record(&g_iobuf[0]);
-            crc_record(&g_iobuf[REC_SIZE]);
+            if (blk_recs >= 2) crc_record(&g_iobuf[REC_SIZE]);
         }
 
         /* Write first CP/M record */
         set_dma(&g_iobuf[0]);
-        if (!f_write(dst)) { sd_close(); return false; }
+        if (!f_write(dst)) {
+            f_delete(dst);
+            set_dma((void*)0x0080);
+            con_str("\r\nERROR: CP/M disk full. Partial copy deleted.\r\n");
+            sd_close();
+            return false;
+        }
 
-        /* Write second CP/M record */
-        set_dma(&g_iobuf[REC_SIZE]);
-        if (!f_write(dst)) { sd_close(); return false; }
+        /* Write second CP/M record only if present */
+        if (blk_recs >= 2) {
+            set_dma(&g_iobuf[REC_SIZE]);
+            if (!f_write(dst)) {
+                f_delete(dst);
+                set_dma((void*)0x0080);
+                con_str("\r\nERROR: CP/M disk full. Partial copy deleted.\r\n");
+                sd_close();
+                return false;
+            }
+        }
     }
 
     sd_close();
@@ -285,6 +342,8 @@ bool sd_copy_cpm_to_sd(pfile_t *src, const sd_t *dst) {
     bool eof;
     uint8_t *p;
     uint8_t j;
+
+    g_ferror = false;   /* clear any stale error from a previous iteration */
 
     if (!f_open(src)) {
         con_str("\r\nERROR: can't open source\r\n");
@@ -310,6 +369,12 @@ bool sd_copy_cpm_to_sd(pfile_t *src, const sd_t *dst) {
             for (j = 0; j < (uint8_t)REC_SIZE; j++) s_sd_data = p[j];
             sd_wait();
             if (g_ferror) { sd_close(); f_close(src); return false; }
+            if (s_sd_status & SD_ST_ERROR) {
+                con_str("\r\nERROR: SD write error (FatFS ");
+                con_out((char)('0' + s_sd_error));
+                con_str(")\r\n");
+                sd_close(); f_close(src); return false;
+            }
         }
     }
 
@@ -326,6 +391,8 @@ bool sd_crc_file(const sd_t *sd) {
     uint8_t st;
     uint16_t i;
     uint8_t *p;
+    uint16_t blk_bytes;
+    uint8_t blk_recs;
 
     if (!sd_open_rd(sd)) return false;
 
@@ -340,11 +407,16 @@ bool sd_crc_file(const sd_t *sd) {
         st = s_sd_status;
         if (!(st & SD_ST_DRQ)) break;
 
+        /* SIZE2 gives actual byte count (0 = 256) */
+        blk_bytes = s_sd_size;
+        if (blk_bytes == 0) blk_bytes = 256;
+        blk_recs = (uint8_t)(blk_bytes / REC_SIZE);  /* 1 or 2 */
+
         p = g_iobuf;
-        for (i = 0; i < (uint16_t)(2 * REC_SIZE); i++) *p++ = s_sd_data;
+        for (i = 0; i < blk_bytes; i++) *p++ = s_sd_data;
 
         crc_record(&g_iobuf[0]);
-        crc_record(&g_iobuf[REC_SIZE]);
+        if (blk_recs >= 2) crc_record(&g_iobuf[REC_SIZE]);
     }
 
     sd_close();
@@ -378,6 +450,8 @@ uint16_t sd_list_wild(const sd_t *pattern) {
     uint8_t st;
     uint8_t *entry;
     const char *fn;
+    uint8_t tbuf[13];                   /* temp: FCB->8.3 re-verify buffer */
+    uint8_t ti;
 
     g_nargc = 0;
 
@@ -450,6 +524,30 @@ uint16_t sd_list_wild(const sd_t *pattern) {
             j = 8;
             /* Extension part (up to 3 chars) */
             while (j < FCB_FNAME_LEN && fn[i]) entry[j++] = (uint8_t)fn[i++];
+        }
+
+        /* Defensive re-verify: reconstruct 8.3 from FCB and re-match.
+         * Guards against SD filenames with >8-char name parts (e.g.
+         * NIALLCONV.COM): the name loop fills all 8 bytes and exits with
+         * fn[i]!='.' so the extension is never written to the FCB.
+         * The truncated FCB "NIALLCON   " would fail the pattern here,
+         * correctly excluding a file that cannot be stored on CP/M. */
+        ti = 0;
+        for (i = 0; i < 8 && entry[i] != ' '; i++) tbuf[ti++] = entry[i];
+        if (entry[8] != ' ') {
+            tbuf[ti++] = '.';
+            for (i = 8; i < FCB_FNAME_LEN && entry[i] != ' '; i++)
+                tbuf[ti++] = entry[i];
+        }
+        tbuf[ti] = '\0';
+        if (!sd_fnmatch(wild, (const char*)tbuf)) {
+            con_str("\r\n ");
+            con_str(fn);
+            con_str(": SD name too long for CP/M, skipped.\r\n"
+                    "   To copy: " PROG_NAME " SD:");
+            con_str(fn);
+            con_str(" A:NEWNAME.COM\r\n");
+            continue;
         }
 
         g_nargc++;

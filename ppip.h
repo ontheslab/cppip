@@ -43,8 +43,8 @@
 #define MAX_USER        31      /* highest accessible user area */
 #define SWITCH_CHAR     '/'     /* option prefix character */
 #define CRC_RETRIES     3       /* retries on CRC verify failure */
-#define PPIP_VERSION    "1.00"
-#define PPIP_BUILD      "33"
+#define PPIP_VERSION    "1.10"
+#define PPIP_BUILD      "44"
 #define PPIP_VER_STR    PPIP_VERSION " (" PPIP_BUILD ")"
 
 /* Program name changes based on build type:
