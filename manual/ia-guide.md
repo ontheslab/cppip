@@ -1,5 +1,5 @@
 # CPPIP / NPPIP / FPPIP - IA: Internet Adapter Quick Guide
-## Quick Guide - v1.10 (44)  [Document revision 1.10]
+## Quick Guide - v1.10 (47)  [Document revision 1.10]
 
 CPPIP and NPPIP are CP/M file copy utilities for the NABU computer. This is a
 quick guide to using the `IA:` prefix, which gives CPPIP direct access to the
@@ -100,7 +100,7 @@ overwrite it, a rename hint is shown:
 | `ERROR: IA: directory not found` | Folder missing or misspelled | Use `/X/` format to auto-create, or check spelling |
 | `ERROR: IA file not found` | File does not exist at that path | Check path and filename |
 | `IA: unavailable - use /N` | CPPIP not on CloudCP/M | Add `/N`, or use NPPIP |
-| NABU hangs, no message | Old build before server-crash fixes | Update to v1.10 (44) or later |
+| NABU hangs, no message | Old build before server-crash fixes | Update to v1.10 (47) or later |
 
 ---
 

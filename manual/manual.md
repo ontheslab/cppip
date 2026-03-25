@@ -1,5 +1,5 @@
 # CPPIP - CP/M File Copy Utility
-## User Manual - v1.10 (44)  [Document revision 1.10]
+## User Manual - v1.10 (47)  [Document revision 1.11]
 
 *A C reimplementation of PPIP v1.8 by D. Jewett III (1985-1988).*
 *C port, NABU IA extension, and FreHD SD extension by Intangybles, 2026.*
@@ -389,7 +389,7 @@ operation and return to the CP/M command prompt immediately.
 | `ERROR: IA: directory not found` | IA subfolder does not exist. Use `/X/` format or check spelling. |
 | `ERROR: IA file not found` | IA file does not exist at the given path. |
 | `IA: unavailable - use /N` | CPPIP on non-CloudCP/M - add `/N` or use NPPIP. |
-| `ERROR: SD: directory not found` | SD: target subdirectory does not exist. Create it on the SD card first. |
+| `ERROR: SD: cannot create: path - check directory exists` | SD: destination subdirectory does not exist. Create it on the SD card using a PC card reader. |
 | `ERROR: SD: file not found` | SD: source file does not exist. |
 | `SD name too long for CP/M, skipped` | SD: source file has a name > 8 chars - cannot be stored on CP/M. Copy manually with a short destination name. |
 
@@ -405,4 +405,4 @@ operation and return to the CP/M command prompt immediately.
 
 ---
 
-*CPPIP/NPPIP/FPPIP v1.10 (44) - Intangybles 2026*
+*CPPIP/NPPIP/FPPIP v1.10 (47) - Intangybles 2026*
