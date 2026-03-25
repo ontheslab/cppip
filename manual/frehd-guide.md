@@ -1,5 +1,5 @@
 # FPPIP / CPPIP - FreHD SD Card Guide
-## v1.10 (44)  [Document revision 1.00]
+## v1.10 (47)  [Document revision 1.01]
 
 *Detailed guide to SD: file operations via the FreHD hard disk emulator.*
 
@@ -175,11 +175,12 @@ FPPIP A:*.COM SD:BACKUP/        SD BACKUP folder must already exist
 ```
 A0>FPPIP A:*.COM SD:MISSING/ /V
 FPPIP v1.10 FreHD Edition [FreHD Detected]
- ERROR: SD: directory not found: SD:MISSING/
+A0:FILE.COM to SD:MISSING/FILE.COM
+ERROR: SD: cannot create: MISSING/FILE.COM - check directory exists
 ```
 
-FPPIP checks for the directory before starting the batch and prints a single
-error if it is not found. No files are copied.
+The first file fails with a clear message and the batch stops immediately.
+No further files are attempted.
 
 **Creating directories:** Use your SD card reader on a PC to create any required
 folder structure before bringing the card back to the FreHD system.
@@ -264,9 +265,9 @@ FPPIP SD:*.COM A: /M               move all .COM from SD root to A:
 | `CRC failed!` | Source and destination checksums do not match. |
 | `[truncated]` | Not applicable to SD: - long-name SD files are skipped, not truncated. |
 | `SD name too long for CP/M, skipped` | SD filename has a name part > 8 chars. Cannot be stored on CP/M. |
-| `ERROR: SD: directory not found` | Target subdirectory does not exist on the SD card. |
 | `ERROR: SD: file not found` | Source file does not exist on the SD card. |
-| `ERROR: SD: cannot create` | Could not create destination file (SD card full or write-protected?). |
+| `ERROR: SD: cannot create: path - check directory exists` | The destination subdirectory does not exist on the SD card. Create it on a PC using a card reader before copying. |
+| `ERROR: SD: cannot create: path` | Could not create destination file. SD card may be full or write-protected. |
 | `Exists! Delete?` | Destination CP/M file already exists. Press Y to overwrite, N to skip. |
 | `R/O! Delete?` | Destination CP/M file is read-only. Press Y to overwrite, N to skip. |
 
@@ -287,10 +288,11 @@ FPPIP SD:*.COM A: /M               move all .COM from SD root to A:
   are case-insensitive.
 - The file may be in a subdirectory. Use `SD:SUBDIR/FILE.COM` not `SD:FILE.COM`.
 
-**`ERROR: SD: directory not found` when copying to a subfolder**
+**`ERROR: SD: cannot create: ... - check directory exists`**
 
-- The subfolder does not exist on the SD card. Create it using a PC card reader
-  before copying.
+- The destination subdirectory does not exist on the SD card. Create it using
+  a PC card reader before copying. The error fires on the first file create
+  attempt and the batch stops immediately - no further files are tried.
 
 **CRC failed! on an SD: copy**
 
@@ -307,4 +309,4 @@ FPPIP SD:*.COM A: /M               move all .COM from SD root to A:
 
 ---
 
-*FPPIP/CPPIP v1.10 (44) - Intangybles 2026*
+*FPPIP/CPPIP v1.10 (47) - Intangybles 2026*

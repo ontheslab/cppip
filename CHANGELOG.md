@@ -4,7 +4,7 @@ All notable changes to CPPIP / NPPIP / FPPIP are documented here.
 
 ---
 
-## [1.10] - 2026 (Build 44)
+## [1.10] - 2026 (Build 47)
 
 ### Added
 
@@ -15,10 +15,11 @@ All notable changes to CPPIP / NPPIP / FPPIP are documented here.
   hardware is detected at startup.
 - **Runtime hardware detection** - startup banner shows `[CloudCP/M]` or
   `[FreHD Detected]` when the respective hardware is found.
-- **SD: directory pre-flight check** - before a wildcard CP/M->SD copy, the
-  target directory is checked first. A single clear error is shown if it
-  does not exist. (FreHD cannot create directories; prepare the card on a
-  PC first.)
+- **SD: missing directory error** - when a CP/M->SD copy fails because the
+  destination subdirectory does not exist, the error message includes
+  `- check directory exists` so the cause is immediately clear. The batch
+  stops after the first failure. (FreHD cannot create directories; prepare
+  the card on a PC first.)
 - **SD: long-filename warning** - wildcard SD: copies skip files with a name
   part longer than 8 characters, with a visible warning and a suggested
   copy command.
@@ -51,8 +52,12 @@ All notable changes to CPPIP / NPPIP / FPPIP are documented here.
 
 ### Build notes
 
-NPPIP incorrectly included FreHD code during builds 39-41, adding ~6KB of
-unused code. Corrected at build 42; NPPIP is IA-only as intended.
+- NPPIP incorrectly included FreHD code during builds 39-41, adding ~6KB of
+  unused code. Corrected at build 42; NPPIP is IA-only as intended.
+- Builds 45-47: SD: subdirectory error handling was reworked. A pre-flight
+  OPENDIR check added at build 40 was found to be incompatible with the
+  FreHD emulator (OPENDIR unsupported). Replaced with a flag-based abort on
+  first create failure, which works correctly on both emulator and real hardware.
 
 ---
 

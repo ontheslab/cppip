@@ -1,6 +1,6 @@
 CPPIP / NPPIP / FPPIP -- IA: Internet Adapter Quick Guide
 ==========================================================
-Quick Guide -- v1.10 (44)  [Document revision 1.10]
+Quick Guide -- v1.10 (47)  [Document revision 1.10]
 
 CPPIP and NPPIP are CP/M file copy utilities for the NABU computer.
 This is a quick guide to using the IA: prefix, which gives CPPIP direct
@@ -115,7 +115,7 @@ NOTES
   - Plain subpaths (NIALL/FILE.DAT) need the folder to exist first.
   - If you get a clean error message, the server is fine.
     A NABU lockup with no message means an old build -- update to
-    CPPIP/NPPIP v1.10 (44) or later.
+    CPPIP/NPPIP v1.10 (47) or later.
 
 ACKNOWLEDGEMENTS
 ----------------
@@ -125,4 +125,4 @@ guidance, and testing -- his input and encouragement throughout the
 development of IA: were invaluable.
 
 =================================================
-CPPIP/NPPIP/FPPIP v1.10 (44)  --  Intangybles 2026
+CPPIP/NPPIP/FPPIP v1.10 (47)  --  Intangybles 2026
