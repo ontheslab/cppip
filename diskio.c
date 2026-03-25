@@ -76,15 +76,41 @@ bool f_write(pfile_t *pf) {
 /* --- Directory search --- */
 
 /*
- * Check if a file exists.
+ * Check if a file exists in the target user area.
  * Returns the directory offset (0-3) if found, 0xFF if not found.
  * Uses the default DMA buffer (0x0080) as scratch space.
+ *
+ * Some CP/M 2.2 implementations (e.g. Montezuma Micro) fall back to
+ * user 0 when a complete filename is not found in the current user area,
+ * causing SRCHFST to return a user-0 entry when searching from user 1.
+ * We filter these out by checking the directory entry's user byte
+ * (byte 0 of the 32-byte entry at DMA + offset*32) and continuing the
+ * search with SRCHNXT until we find a match in the correct user area.
+ * On standard CP/M, SRCHFST only returns entries from the current user
+ * area, so the check passes immediately and behaviour is unchanged.
  */
 uint8_t f_exist(pfile_t *pf) {
+    uint8_t  offset;
+    uint8_t *entry;
+
     zero_fcb_ctrl(pf);
     set_dma(DEFAULT_DMA);
     f_setusr(pf);
-    return (uint8_t)bdos(BDOS_SRCHFST, (int)&pf->fcb);
+    offset = (uint8_t)bdos(BDOS_SRCHFST, (int)&pf->fcb);
+
+    if (offset == 0xFF) return 0xFF;
+
+    /* On Montezuma Micro CP/M (and similar), SRCHFST may return a user-0
+     * directory entry as fallback when the file is not found in the current
+     * user area.  The fallback only fires after failing to find the file in
+     * the target area, so the first result's user byte (entry[0]) tells us
+     * definitively whether the file exists in the target user area or only
+     * in user 0.  No SRCHNXT loop is needed or safe (the patched BDOS would
+     * loop indefinitely returning the same user-0 entry). */
+    entry = (uint8_t*)DEFAULT_DMA + ((uint16_t)offset << 5);
+    if (entry[0] != pf->user) return 0xFF;  /* user-0 fallback - not in target area */
+
+    return offset;
 }
 
 /*

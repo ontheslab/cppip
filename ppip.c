@@ -518,17 +518,18 @@ static bool is_ia_arg(int idx) {
 
 /* ---- IA copy dispatch (Phase 5) ---- */
 static void do_copy_ia(void) {
-    pfile_t  cpm;
-    pfile_t  src_tmpl;
-    pfile_t  dst_tmpl;
-    pfile_t  src_pf;
-    ia_t     ia_file;
-    uint8_t  i;
-    uint16_t n;
-    uint16_t cnt;
-    uint8_t *narg;
-    uint8_t  saved_dr;
-    uint8_t  saved_user;
+    pfile_t     cpm;
+    pfile_t     src_tmpl;
+    pfile_t     dst_tmpl;
+    pfile_t     src_pf;
+    ia_t        ia_file;
+    uint8_t     i;
+    uint16_t    n;
+    uint16_t    cnt;
+    uint8_t    *narg;
+    uint8_t     saved_dr;
+    uint8_t     saved_user;
+    const char *nm_part;    /* ia_name_part() result cached for truncation check */
 
     /* Abort if not on NABU CloudCP/M and user hasn't forced /N */
     if (!ia_is_nabu() && !g_opts.nabu_ia) {
@@ -585,10 +586,25 @@ static void do_copy_ia(void) {
                 }
                 match_wild(&cpm, &dst_tmpl, &src_pf);
 
+                nm_part = ia_name_part(&ia_file);
                 ia_print_name(&ia_file);
                 con_str(" to ");
                 print_fname(&cpm);
-                if (!ia_copy_ia_to_cpm(&ia_file, &cpm)) continue;
+                /* Note truncation: stem >8 chars means FCB name field is full
+                 * and the original name has a 9th char that is not a dot. */
+                if (src_pf.fcb.f[7] != ' ' && nm_part[8] && nm_part[8] != '.')
+                    con_str(" [truncated]");
+                if (!ia_copy_ia_to_cpm(&ia_file, &cpm)) {
+                    /* If truncation caused a collision the user declined,
+                     * show the same rename hint as the SD long-name warning. */
+                    if (!g_ferror && src_pf.fcb.f[7] != ' ' &&
+                            nm_part[8] && nm_part[8] != '.') {
+                        con_str("   To copy: " PROG_NAME " IA:");
+                        con_str(nm_part);
+                        con_str(" A:NEWNAME.COM\r\n");
+                    }
+                    continue;
+                }
 
                 if (g_opts.verify) {
                     con_str(" - Verifying");
@@ -747,12 +763,42 @@ static bool is_sd_arg(int idx) {
     return (s[0] == 'S' && s[1] == 'D' && s[2] == ':');
 }
 
+/* Build SD destination path from g_sd_dst prefix + source FCB filename.
+ * g_sd_dst provides the path prefix (everything up to the last '/').
+ * fcb provides the 8.3 filename (name + ext). */
+static void sd_dst_from_fcb(sd_t *dst, const pfile_t *fcb) {
+    uint8_t k = 0;
+    uint8_t j;
+    uint8_t c;
+    uint8_t plen = 0;
+    for (j = 0; j < g_sd_dst.namelen; j++)
+        if (g_sd_dst.name[j] == '/') plen = (uint8_t)(j + 1);
+    for (j = 0; j < plen && k < SD_NAME_LEN - 1; j++)
+        dst->name[k++] = g_sd_dst.name[j];
+    for (j = 0; j < 8; j++) {
+        c = fcb->fcb.f[j] & 0x7F;
+        if (c == ' ') break;
+        if (k < SD_NAME_LEN - 1) dst->name[k++] = c;
+    }
+    if ((fcb->fcb.t[0] & 0x7F) != ' ') {
+        if (k < SD_NAME_LEN - 1) dst->name[k++] = '.';
+        for (j = 0; j < 3; j++) {
+            c = fcb->fcb.t[j] & 0x7F;
+            if (c == ' ') break;
+            if (k < SD_NAME_LEN - 1) dst->name[k++] = c;
+        }
+    }
+    dst->name[k] = '\0';
+    dst->namelen = k;
+}
+
 static void do_copy_sd(void) {
     pfile_t  cpm;
     pfile_t  src_tmpl;
     pfile_t  dst_tmpl;
     pfile_t  src_pf;
     sd_t     sd_file;
+    sd_t     dst_sd;
     uint8_t  i;
     uint16_t n;
     uint16_t cnt;
@@ -825,11 +871,13 @@ static void do_copy_sd(void) {
                     con_str(" - Verifying");
                     if (!crc_file(&cpm)) {
                         con_str("\r\nERROR: can't verify dest\r\n");
+                        f_delete(&cpm);
                         continue;
                     }
                     if (g_crcval != g_crcval2) {
-                        con_str(" FAILED\r\n CRC failed! Please check your disk.\r\n");
+                        con_str(" FAILED\r\n CRC failed! Dest deleted.\r\n");
                         con_out('\007');
+                        f_delete(&cpm);
                         continue;
                     }
                     con_str(" OK");
@@ -872,11 +920,13 @@ static void do_copy_sd(void) {
             con_str(" - Verifying");
             if (!crc_file(&cpm)) {
                 con_str("\r\nERROR: can't verify dest\r\n");
+                f_delete(&cpm);
                 return;
             }
             if (g_crcval != g_crcval2) {
-                con_str(" FAILED\r\n CRC failed! Please check your disk.\r\n");
+                con_str(" FAILED\r\n CRC failed! Dest deleted.\r\n");
                 con_out('\007');
+                f_delete(&cpm);
                 return;
             }
             con_str(" OK");
@@ -897,8 +947,18 @@ static void do_copy_sd(void) {
         return;
     }
 
+    /* Pre-flight: if SD destination has a path component, verify the
+     * directory exists.  The FreHD cannot create directories. */
+    for (i = 0; i < g_sd_dst.namelen; i++)
+        if (g_sd_dst.name[i] == '/') break;
+    if (i < g_sd_dst.namelen && !sd_dir_check(&g_sd_dst)) {
+        con_str(" ERROR: SD: directory not found: ");
+        sd_print_name(&g_sd_dst);
+        con_nl();
+        return;
+    }
+
     for (n = 0; n < g_nargc; n++) {
-        sd_t dst_sd;
         if (check_abort()) return;
 
         narg = &g_nargbuf[n * FCB_FNAME_LEN];
@@ -909,58 +969,30 @@ static void do_copy_sd(void) {
         zero_fcb_ctrl(&cpm);
 
         /* Resolve SD destination name:
-         *  - bare "SD:": derive name from CP/M source FCB
-         *  - explicit "SD:name": use as-is */
-        if (g_sd_dst.namelen == 0) {
-            /* Build 8.3 name from FCB (e.g. "FILE.COM") */
-            uint8_t k = 0;
-            uint8_t j;
-            for (j = 0; j < 8; j++) {
-                uint8_t c = cpm.fcb.f[j] & 0x7F;
-                if (c == ' ') break;
-                dst_sd.name[k++] = c;
-            }
-            if ((cpm.fcb.t[0] & 0x7F) != ' ') {
-                dst_sd.name[k++] = '.';
-                for (j = 0; j < 3; j++) {
-                    uint8_t c = cpm.fcb.t[j] & 0x7F;
-                    if (c == ' ') break;
-                    dst_sd.name[k++] = c;
-                }
-            }
-            dst_sd.name[k] = '\0';
-            dst_sd.namelen = k;
+         *  - bare "SD:"         : sd_dst_from_fcb derives from CPM FCB
+         *  - "SD:DIR/"          : sd_dst_from_fcb prepends path + FCB name
+         *  - explicit "SD:name" : use as-is
+         *  - wildcard "SD:*.X"  : resolve via match_wild then sd_dst_from_fcb */
+        if (g_sd_dst.namelen == 0 ||
+            g_sd_dst.name[g_sd_dst.namelen - 1] == '/') {
+            sd_dst_from_fcb(&dst_sd, &cpm);
         } else {
             dst_sd = g_sd_dst;
         }
 
-        /* Build FCB for wildcard dest resolution if dest has wildcard */
+        /* Wildcard dest: strip path prefix, resolve filename part via FCB,
+         * then sd_dst_from_fcb re-prepends the path from g_sd_dst. */
         if (g_sd_dst.namelen > 0 && sd_has_wild(&g_sd_dst)) {
-            if (!make_fcb(g_sd_dst.name, &dst_tmpl)) {
+            /* Find start of wildcard filename (after last '/') */
+            saved_dr = 0;
+            for (i = 0; i < g_sd_dst.namelen; i++)
+                if (g_sd_dst.name[i] == '/') saved_dr = (uint8_t)(i + 1);
+            if (!make_fcb(&g_sd_dst.name[saved_dr], &dst_tmpl)) {
                 con_str("\r\nERROR: invalid SD dest pattern\r\n");
                 return;
             }
             match_wild(&src_pf, &dst_tmpl, &cpm);
-            /* Rebuild dst_sd.name from resolved FCB */
-            {
-                uint8_t k = 0;
-                uint8_t j;
-                for (j = 0; j < 8; j++) {
-                    uint8_t c = src_pf.fcb.f[j] & 0x7F;
-                    if (c == ' ') break;
-                    dst_sd.name[k++] = c;
-                }
-                if ((src_pf.fcb.t[0] & 0x7F) != ' ') {
-                    dst_sd.name[k++] = '.';
-                    for (j = 0; j < 3; j++) {
-                        uint8_t c = src_pf.fcb.t[j] & 0x7F;
-                        if (c == ' ') break;
-                        dst_sd.name[k++] = c;
-                    }
-                }
-                dst_sd.name[k] = '\0';
-                dst_sd.namelen = k;
-            }
+            sd_dst_from_fcb(&dst_sd, &src_pf);
         }
 
         print_fname(&cpm);
@@ -1134,7 +1166,14 @@ void main(void) {
     con_str(sd_is_frehd() ? " [FreHD Detected]" : " [FreHD not found]");
     con_str("\r\n");
 #else
-    con_str(PROG_NAME " v" PPIP_VERSION "\r\n");
+    con_str(PROG_NAME " v" PPIP_VERSION);
+#if defined(NABU_IA)
+    if (ia_is_nabu()) con_str(" [CloudCP/M]");
+#endif
+#if defined(FREHD)
+    if (sd_is_frehd()) con_str(" [FreHD Detected]");
+#endif
+    con_str("\r\n");
 #endif
 
     /* Init CRC tables */

@@ -38,6 +38,9 @@ bool     sd_copy_cpm_to_sd(pfile_t *src, const sd_t *dst);
 /* Read SD file and compute CRC into g_crcval (for /V verify after CPM->SD) */
 bool     sd_crc_file(const sd_t *sd);
 
+/* Return true if the directory named in sd->name exists on the SD card */
+bool     sd_dir_check(const sd_t *sd);
+
 /* Return true if sd->name contains a wildcard character (* or ?) */
 bool     sd_has_wild(const sd_t *sd);
 
