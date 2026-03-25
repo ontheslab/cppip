@@ -221,6 +221,12 @@ bool sd_open_wr(const sd_t *sd) {
     if (s_sd_status & SD_ST_ERROR) {
         con_str("\r\nERROR: SD: cannot create: ");
         con_str(sd->name);
+        for (i = 0; i < sd->namelen; i++) {
+            if (sd->name[i] == '/') {
+                con_str(" - check directory exists");
+                break;
+            }
+        }
         con_nl();
         return false;
     }
