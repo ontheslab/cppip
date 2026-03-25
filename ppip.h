@@ -44,7 +44,7 @@
 #define SWITCH_CHAR     '/'     /* option prefix character */
 #define CRC_RETRIES     3       /* retries on CRC verify failure */
 #define PPIP_VERSION    "1.10"
-#define PPIP_BUILD      "46"
+#define PPIP_BUILD      "47"
 #define PPIP_VER_STR    PPIP_VERSION " (" PPIP_BUILD ")"
 
 /* Program name changes based on build type:

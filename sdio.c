@@ -73,6 +73,10 @@ __sfr __at(0xCF) s_sd_status;   /* STATUS  */
 #define FA_VOL   0x08
 #define FA_HID   0x02
 
+/* Set when sd_open_wr fails with SD_ST_ERROR (file create failed).
+ * Cleared by sd_copy_cpm_to_sd at entry. Caller checks to abort batch loop. */
+bool g_sd_create_err = false;
+
 /* ------------------------------------------------------------------ */
 /* Internal helpers                                                     */
 /* ------------------------------------------------------------------ */
@@ -219,6 +223,7 @@ bool sd_open_wr(const sd_t *sd) {
     sd_wait();
     if (g_ferror) return false;
     if (s_sd_status & SD_ST_ERROR) {
+        g_sd_create_err = true;
         con_str("\r\nERROR: SD: cannot create: ");
         con_str(sd->name);
         for (i = 0; i < sd->namelen; i++) {
@@ -349,7 +354,8 @@ bool sd_copy_cpm_to_sd(pfile_t *src, const sd_t *dst) {
     uint8_t *p;
     uint8_t j;
 
-    g_ferror = false;   /* clear any stale error from a previous iteration */
+    g_ferror = false;           /* clear any stale error from a previous iteration */
+    g_sd_create_err = false;    /* clear create-fail flag */
 
     if (!f_open(src)) {
         con_str("\r\nERROR: can't open source\r\n");
