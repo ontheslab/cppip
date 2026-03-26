@@ -1,281 +1,64 @@
-/* ppip.c - CPPIP/NPPIP - CP/M File Copy Utility
+/* ppip.c - CPPIP/NPPIP/FPPIP - CP/M File Copy Utility
    A C reimplementation of PPIP v1.8 (D. Jewett III, 1985-1988).
-   Original Z80 assembly source preserved in PPIP Master/.
+   Original Z80 assembly source preserved in old/.
    C port by Intangybles (c)2026.
 
-   Build (default — produces both CPPIP.COM and NPPIP.COM):
+   See CHANGELOG.md for full version history.
+
+   Build (default - produces CPPIP.COM, NPPIP.COM, FPPIP.COM):
      build.bat
 
    Build manually (inside Claude Code / Git Bash):
-     CPPIP.COM (standard — IA via /N, FreHD SD card support):
+     CPPIP.COM (standard - IA via /N, FreHD SD card support):
        zcc +cpm -vn -create-app -compiler=sdcc --opt-code-size -DNABU_IA -DFREHD \
            -I../NABULIB \
            ppip.c cmdparse.c filename.c diskio.c crc.c iaio.c console.c sdio.c -o CPPIP
-     NPPIP.COM (NABU edition — IA always on, no SD card code):
+     NPPIP.COM (NABU edition - IA always on, no SD card code):
        zcc +cpm -vn -create-app -compiler=sdcc --opt-code-size -DNABU_IA -DNABU_DEFAULT \
            -I../NABULIB \
            ppip.c cmdparse.c filename.c diskio.c crc.c iaio.c console.c -o NPPIP
-     FPPIP.COM (FreHD edition — SD always on, no IA code):
+     FPPIP.COM (FreHD edition - SD always on, no IA code):
        zcc +cpm -vn -create-app -compiler=sdcc --opt-code-size -DFREHD -DFREHD_DEFAULT \
            ppip.c cmdparse.c filename.c diskio.c crc.c console.c sdio.c -o FPPIP
 
-   Target platforms : CP/M 2.2 — NABU CloudCP/M, TRS-80 Model 4P, Kaypro
+   Target platforms : CP/M 2.2 - NABU CloudCP/M, TRS-80 Model 4P, Kaypro
    Compiler         : z88dk with SDCC backend (Z80, 64KB address space)
 
    Version numbering: major.minor (build)
    Increment build number for each new test build.
 
    -----------------------------------------------------------------------
-   Version 1.10 (44) — current
+   Version 1.10 (47) - current
 
-   Phase 6: FreHD SD card extension. New binary FPPIP.COM; SD: prefix added
-   to CPPIP.COM (compiled in with -DFREHD). All code in sdio.c/h.
+   FreHD SD card extension. New binary FPPIP.COM; SD: prefix compiled into
+   CPPIP.COM when -DFREHD is set. All SD code in sdio.c/h.
+   Hardware-tested on TRS-80 Model 4P with Montezuma Micro CP/M 2.2.
 
-   Hardware-tested on TRS-80 Model 4P with Montezuma Micro CP/M 2.2 and
-   FreHD hard disk emulator.
-
-   Key fixes during hardware testing (builds 33-44):
+   Key fixes during hardware testing (builds 33-47):
 
    - SIZE2 partial-block (build 36): last block of an odd-record file
-     returns only 128 bytes from the FreHD. Reading SIZE2 after DRQ gives
-     the actual byte count (0 = 256); only that many bytes are CRC'd and
-     written. Fixes CRC verify failures on odd-sized files.
+     returns fewer than 256 bytes. SIZE2 gives the actual byte count
+     (0 = 256); only those bytes are CRC'd and written to CP/M.
 
-   - Montezuma Micro CP/M 2.2 f_exist() (builds 38-39): Montezuma Micro's
-     patched BDOS returns a user-0 directory entry as fallback when a file
-     is not found in the target user area. The original SRCHNXT loop to
-     skip these caused an infinite lockup (the patched BDOS applies the
-     same fallback to SRCHNXT). Fix: single SRCHFST call; check entry[0]
-     against pf->user — if different, the file is not in the target area.
-
-   - SD directory pre-flight (build 40): the FreHD cannot create directories.
-     Before a batch CP/M->SD copy, sd_dir_check() opens the target directory
-     via OPENDIR. Single clear error if the directory does not exist, instead
-     of one error message per file in the batch.
+   - Montezuma Micro CP/M 2.2 f_exist() (builds 38-39): Montezuma's BDOS
+     returns a user-0 directory entry as fallback when a file is not found.
+     Fix: single SRCHFST call; if entry[0] != pf->user, treat as not found.
 
    - sd_list_wild false match (builds 42-43): SD filenames with name parts
-     longer than 8 characters (e.g. NIALLCONV.COM) caused the FCB conversion
-     to drop the extension silently (name loop fills 8 bytes, exits on 'V'
-     not '.', so '.' check fails). Fix: after FCB conversion, reconstruct
-     the 8.3 name from the FCB bytes and re-match. If the extension was lost,
-     skip the entry with a visible warning and a "To copy manually" hint.
+     longer than 8 characters caused FCB conversion to drop the extension.
+     Fix: reconstruct 8.3 name from FCB bytes and re-match; skip with
+     warning if the extension was lost.
 
-   - IA wildcard truncation (build 44): IA: filenames with name parts longer
-     than 8 characters are copied with the name silently truncated to 8 chars
-     (make_fcb() scans past the overflow and correctly captures the extension).
-     Truncated copies now show "[truncated]" on the copy line. If a collision
-     occurs and the user declines, a rename hint is shown.
+   - IA wildcard truncation (build 44): IA: filenames with name parts
+     longer than 8 chars are truncated to fit CP/M. Truncated copies now
+     show [truncated] on the copy line; collision shows a rename hint.
 
-   Version 1.00 (32)
-   - Fix: TPA allocator reserved no space for the stack. z88dk CP/M startup
-     sets SP to the BDOS address (top of TPA); stack grows down from there.
-     Allocating all free TPA for g_iobuf left the stack nowhere to go,
-     causing immediate buffer corruption on the first NABULIB call (lockups
-     and zero-length copies). Fix: subtract STACK_RESERVE (1024 bytes) from
-     free TPA before sizing the I/O buffer.
-
-   Version 1.00 (31)
-   - TPA buffer allocation: g_iobuf and g_nargbuf moved from static BSS to
-     free TPA claimed at startup. CPPIP.COM shrinks from ~49.8KB to ~28KB
-     (44% reduction). I/O buffer grows from 128 records to ~175 at runtime
-     on a typical CloudCP/M system. Uses __BSS_END_tail linker symbol for
-     program end; BDOS base read from CP/M page zero (0x0006).
-   - Fix: BDOS 11 (CONSTAT) returns a false positive after HCCA/IA
-     communication on CloudCP/M. The ask_delete() type-ahead drain and
-     check_abort() both used BDOS 11; replaced with direct BDOS 6 (DIRIO,
-     0xFF) calls, which return 0 immediately when no key is waiting and
-     are reliable on all CP/M 2.2 variants.
-   - Keyboard buffer drained before each "Exists!/RO! Delete?" prompt so
-     rapid keypresses cannot silently auto-answer the next confirmation.
-
-   Version 1.00 (30)
-   - Fix: Ctrl-C at "Exists! Delete?" prompt now triggers a CP/M warm boot
-     instead of being silently treated as N and continuing the batch copy.
-     CloudCP/M's BDOS 1 (CONIN) passes 0x03 to the application; ask_delete()
-     now detects it and jumps to 0x0000 (standard CP/M warm boot vector).
-
-   Version 1.00 (29)
-   - Fix: batch IA copy loop (CPM->IA and IA->CPM) no longer stops at the
-     first skip/error. Inner-loop error paths used "return" (exiting the
-     whole function) instead of "continue" (skipping to the next file).
-     Saying N to "Exists! Delete?" during a wildcard IA copy now skips
-     that file and continues with the rest, matching CPM->CPM behaviour.
-
-   Version 1.00 (28)
-   - Dual-binary build: CPPIP.COM (standard, /N for IA) and NPPIP.COM
-     (NABU edition, IA always active, CloudCP/M tag in startup banner).
-   - Version format changed to 1.00 (NN): major.minor plus build number.
-   - PROG_NAME and PPIP_VER_STR macros unify banner/help across both builds.
-
-   Version 1.00 (27)
-   - IA wildcard batch copy (IA:DIR/*.* D:) now works past the first file.
-     The NIA server has one global file-list context shared by all
-     rn_fileList() calls. ia_check_dirs() (called from ia_open_rd() during
-     each file's copy) issues its own rn_fileList(DIRS,...) calls which
-     clobber the INCLUDE_FILES list set up by ia_list_wild(). On the next
-     loop iteration, ia_list_item(n) tried to index into the dir-check
-     list (1 entry) rather than the file list, causing
-     "rn_fileListItem requested index N but there are only 1 items".
-     Fix: re-call ia_list_wild() at the top of each loop iteration to
-     restore the server's file-list context before ia_list_item(n).
-
-   Version 1.0.26 — NIA server crash prevention and path fixes
-
-   Two root problems were found and fixed (v1.0.20-1.0.26):
-
-   PROBLEM 1: Copying to/from a subdirectory that does not exist crashes
-   the NIA server and hangs the NABU indefinitely.
-
-   Root cause: the NIA server (NABU-Internet-Adapter .NET app) throws
-   DirectoryNotFoundException and drops the TCP connection when
-   rn_fileOpen() is called for a path whose directory does not exist.
-   The NABU then hangs forever in hcca_DiReadByte() waiting for a
-   response that never comes. A handle check after rn_fileOpen() is
-   useless — rn_fileOpen() never returns.
-
-   The NIA server has two distinct code paths for rn_FileOpen():
-     - Drive-letter paths (e.g. Z:\TEST\FILE): server calls
-       Directory.CreateDirectory() first, then opens. Safe always.
-     - Plain paths (e.g. TEST\FILE): server goes straight to File.Open().
-       If the directory is missing it crashes. Undocumented behaviour;
-       discovered by disassembly of fstest.NABU and analysis of the NIA
-       server binary.
-
-   Solution: two-part.
-   a) ia_check_dirs() — before any rn_fileOpen() on a plain path (read
-      or write), each directory component is verified with rn_fileList
-      (INCLUDE_DIRECTORIES), walking level by level. rn_fileList returns
-      0 for a missing directory without crashing. If any component is
-      missing, a clear error is printed and rn_fileOpen is never called.
-   b) Drive-letter paths — ia_init() detects X:/ prefix and converts '/'
-      to '\\', sending the path to the server as "X:\DIR\FILE". The
-      server auto-creates the directory tree. ia_check_dirs() is skipped
-      for these paths. Also recognised: /X/ Unix-style prefix (e.g.
-      /D/1/FILE → D:\1\FILE) — same server code path, friendlier to type.
-      A bare leading '/' not matching /X/ is stripped to prevent the
-      server mapping it to its Windows drive root and crashing.
-      ia_init() refactored to a src-pointer + output-index loop to keep
-      prefix detection and the main copy loop clean.
-
-   PROBLEM 2: Files stored with lowercase names on the IA store are not
-   found when read back, because rn_fileSize() does case-sensitive lookup
-   internally. Querying "ARCOPY.ZIP" for a file stored as "arcopy.zip"
-   returns -1 (not found) even though Windows NTFS is case-insensitive.
-
-   Solution: ia_exists()/rn_fileSize() removed from ia_open_rd() entirely.
-   rn_fileOpen(READONLY) uses the Windows OS File.Open() which IS
-   case-insensitive and finds the file regardless of stored case. The
-   returned handle (0xFF = failure) is checked instead. ia_check_dirs()
-   is still called for plain paths on reads to catch missing directories
-   before rn_fileOpen() is invoked.
-
-   Version 1.0.19
-   - IA subfolder/path support. Source and destination can now include
-     directory components: IA:FRED/FILE.DAT, IA:A/B/C/*.DAT, IA:SUBDIR/.
-     ia_list_wild() splits path/wildcard on last separator and caches the
-     path prefix in s_list_path[] so ia_list_item() returns full paths.
-     ia_name_with_path() builds "PATH/NAME.EXT" from a template + FCB for
-     CPM->IA copies. ia_name_part() strips the path prefix before make_fcb()
-     for IA->CPM copies. Any depth supported: "A/B/C/*.SAV" etc.
-   - IA_NAME_LEN increased from 32 to 64 to accommodate multi-level paths.
-
-   Version 1.0.18
-   - Options changed from toggle to set-only. Typing /V/V or /V/V/V
-     simply means verify on — repeated switches no longer cancel out.
-   - CPM->IA wildcard dest (e.g. *.COM IA:*.SAV) now resolves correctly
-     via match_wild — previously IA:*.SAV was used as a literal filename.
-   - IA->CPM wildcard dest template now saved before loop and resolved
-     per-file via match_wild (same fix, other direction).
-
-   Version 1.0.15
-   - IA filenames from rn_fileListItem() forced to uppercase; ia_init()
-     also uppercases on entry. Prevents case mismatch between files copied
-     to and from the IA store (Windows server is case-preserving).
-   - CPPIP.COM ~47,928 bytes (NABU build).
-
-   Version 1.0.14
-   - CPM->IA wildcard fix: bare "IA:" destination now derives each
-     destination filename from the CP/M source FCB (e.g. *.DAT -> IA:
-     copies each file as IA:NAME.DAT). Previously sent a 0-length filename
-     to the IA store, causing a comms error and lockup.
-   - IA->CPM wildcard expansion: IA:*.DAT D: now works. Uses rn_fileList()
-     and rn_fileListItem() to enumerate matching files on the IA store,
-     then copies each to the CP/M destination with name derived from the
-     IA filename. /V, /C, and /M all work per-file in the wildcard loop.
-
-   Version 1.0.13
-   - /V CRC verify added for CPM->IA copies. After writing to the IA
-     store, ia_crc_file() re-reads the file back and compares CRC against
-     the source pass. Previously verify was silently ignored for CPM->IA.
-
-   Version 1.0.12
-   - NABU detection: ia_is_nabu() wraps isCloudCPM() (checks CloudCP/M
-     BIOS flag at 0xFF29). IA: operations blocked on non-NABU systems
-     (prevents TRS-80 lockup via spurious HCCA port access). /N option
-     allows override on non-CloudCP/M NABU systems (ZSDOS etc.).
-   - Help now shows [NABU Detected] or [use /N to enable] dynamically
-     next to the IA: prefix description.
-   - /A (archive) option removed. CP/M 2.2 never sets or clears the
-     archive bit automatically, making the option impractical.
-   - /H added for help (replaces bare "/" which looked odd in output).
-   - IA->CPM bare drive dest fixed (e.g. IA:FRED.COM D: now copies to
-     D:FRED.COM instead of D:. ).
-   - /V verify wired up for IA->CPM (source CRC accumulated during read,
-     dest re-read via crc_file() and compared after copy).
-   - "Intangybles" brand name spelling corrected throughout.
-
-   Version 1.0.10 / 1.0.11
-   - First live IA: development builds. Initial IA->CPM, CPM->IA, and
-     CON: editor testing on real NABU hardware and MAME emulation.
-     Several options and behaviours adjusted during this phase; versions
-     rolled back to 1.0.09 baseline and reworked cleanly into 1.0.12.
-
-   Version 1.0.09
-   - Phase 5: NABU IA RetroNET file store extension.
-     IA: prefix on source or destination routes to do_copy_ia().
-     New iaio.c/h wraps RetroNET-FileStore.h (included once, in iaio.c).
-     Three copy routes: CPM->CPM (unchanged), CPM->IA, IA->CPM.
-     ia_open_wr() handles Exists!/Delete? prompt for IA destinations.
-     IA->CPM: last partial record padded with ^Z per CP/M convention.
-     All IA code gated by -DNABU_IA; plain CP/M builds unchanged.
-   - Phase 4: CON: as source. con_in_ne() loop with backspace, ~ escape
-     for control characters, ^Z to end; output padded to 128-byte records.
-   - MAX_ARG_LEN increased from 20 to 32 to accommodate IA filenames.
-
-   Version 1.0.05
-   - Phase 3: CRC-16 CCITT verify fully wired up. /V triggers crc_file()
-     on dest after copy and compares against source CRC (g_crcval2).
-     Retry loop: up to CRC_RETRIES (3) attempts on mismatch; bad dest
-     deleted between retries; bell + error message on final failure.
-   - Output format matched original PPIP v1.7 exactly: all activity on
-     one line ("src to dst Exists! Delete? y - Verifying OK  CRC: xxxx").
-   - /V/C and /VC option concatenation fixed (inner scan stops at /).
-   - /E, /W, /M all tested and working.
-
-   Version 1.0.01
-   - Phase 2: wildcard expansion via BDOS SRCHFST/SRCHNXT.
-     expand_wild() fills g_nargbuf with up to MAX_NARG (512) matches.
-     match_wild() resolves ? in dest template against each source name.
-     Duplicate dest detection via last_dst sentinel.
-   - do_copy() split into do_copy() loop and copy_one() per-file handler.
-   - Binary renamed CPPIP.COM to distinguish the C port from original.
-
-   Version 1.1
-   - Two CP/M compatibility bugs fixed on first NABU deployment:
-     (1) make_fcb() rewritten without goto — SDCC miscompiles goto
-         crossing a block-local variable declaration on Z80, producing
-         garbage FCB names for both source and destination.
-     (2) NABU CloudCP/M CCP uses null byte (not space) as argument
-         separator in command tail at 0x0080. Fixed by normalising any
-         control character to space during command tail copy.
-
-   Version 1.0 — initial C port
-   - Phase 1: single file copy with DU: prefix (drive A-P, user 0-31).
-     Own ppip_fcb_t (36 bytes) — z88dk struct fcb is 180+ bytes.
-     pfile_t stores user byte before FCB, mirroring original FCB[-1].
-     Static 16KB I/O buffer (128 x 128-byte records).
-     ZRDOS detection: skips disk reset if bdos(48,0) returns non-zero.
-     Attribute copy: R/O and archive bits propagated from src to dest FCB.
+   - SD subdirectory error handling (builds 45-47): FreHD OPENDIR is not
+     working/supported by the FreHD emulator so a pre-flight directory
+     check was not viable. Instead, sd_open_wr() sets g_sd_create_err on
+     the first failed create; the batch loop checks this flag and aborts
+     after the first failure. Error message includes check directory exists
+     when a path separator is present. Works on both emulator and real hardware.
 */
 
 #include "ppip.h"
@@ -341,13 +124,13 @@ static void copy_attributes(pfile_t *dst, const pfile_t *src) {
 static void copy_one(pfile_t *src, pfile_t *dst) {
     uint8_t retry;
 
-    /* Print "src to dst" — no newline yet, rest of line filled in below */
+    /* Print "src to dst" â€” no newline yet, rest of line filled in below */
     print_fname(src);
     con_str(" to ");
     print_fname(dst);
 
     if (g_opts.verify) {
-        /* CRC verify loop — retry up to CRC_RETRIES times on mismatch */
+        /* CRC verify loop â€” retry up to CRC_RETRIES times on mismatch */
         for (retry = 0; retry < CRC_RETRIES; retry++) {
             if (!f_copy(src, dst)) return;  /* error msg inside has its own \r\n */
 
@@ -359,7 +142,7 @@ static void copy_one(pfile_t *src, pfile_t *dst) {
                 return;
             }
 
-            if (g_crcval == g_crcval2) break;  /* CRC match — done */
+            if (g_crcval == g_crcval2) break;  /* CRC match â€” done */
 
             /* Mismatch: delete bad dest and retry if attempts remain */
             f_delete(dst);
@@ -429,7 +212,7 @@ static void do_con_copy(void) {
             warned = true;
         }
 
-        c = con_in_ne();    /* no echo — we control all output */
+        c = con_in_ne();    /* no echo â€” we control all output */
 
         if (c == '\032') {  /* ^Z: end of input */
             con_out('^'); con_out('Z'); con_nl();
@@ -524,9 +307,9 @@ static void ia_name_with_path(ia_t *out, const ia_t *path_tmpl, const pfile_t *s
     if (path_tmpl->namelen > 0 &&
         (path_tmpl->name[path_tmpl->namelen - 1] == '/' ||
          path_tmpl->name[path_tmpl->namelen - 1] == '\\')) {
-        pfxlen = path_tmpl->namelen;        /* "SUBDIR/" — use whole name */
+        pfxlen = path_tmpl->namelen;        /* "SUBDIR/" â€” use whole name */
     } else {
-        pfxlen = ia_path_len(path_tmpl);    /* "SUBDIR/*.SAV" — up to last / */
+        pfxlen = ia_path_len(path_tmpl);    /* "SUBDIR/*.SAV" â€” up to last / */
     }
 
     /* Copy path prefix */
@@ -677,7 +460,7 @@ static void do_copy_ia(void) {
 
         /* Single IA source file */
 
-        /* Bare drive dest (e.g. D: or D6:) — use IA source filename (strip path) */
+        /* Bare drive dest (e.g. D: or D6:) â€” use IA source filename (strip path) */
         if (cpm.fcb.f[0] == ' ') {
             saved_dr   = cpm.fcb.dr;
             saved_user = cpm.user;
@@ -937,7 +720,7 @@ static void do_copy_sd(void) {
 
         /* Single SD source file */
 
-        /* Bare drive dest (e.g. D: or D6:) — use SD source filename */
+        /* Bare drive dest (e.g. D: or D6:) â€” use SD source filename */
         if (cpm.fcb.f[0] == ' ') {
             const char *fn = g_sd_src.name;
             uint8_t plen = 0;
@@ -1191,7 +974,7 @@ void main(void) {
         if (g_iobuf_recs > MAX_IOBUF_RECS) g_iobuf_recs = MAX_IOBUF_RECS;
     }
 
-    /* Version banner — shows clean version; build number in /H help title */
+    /* Version banner â€” shows clean version; build number in /H help title */
 #if defined(NABU_DEFAULT)
     con_str(PROG_NAME " v" PPIP_VERSION " NABU Edition");
     if (ia_is_nabu()) con_str(" [CloudCP/M]");
@@ -1237,7 +1020,7 @@ void main(void) {
         bdos(BDOS_RSTDSK, 0);
     }
 
-    /* CON: source — keyboard to file */
+    /* CON: source â€” keyboard to file */
     if (is_con(g_argv[0])) {
         do_con_copy();
         goto done;
